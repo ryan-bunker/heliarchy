@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Singularity — Real-Time 4X Galaxy Prototype</title>
+    <style>
+      :root {
+        --bg-panel: rgba(11, 15, 25, 0.92);
+        --border: #263452;
+        --accent: #4da6ff;
+        --accent-green: #3ddc97;
+        --accent-amber: #ffbe55;
+        --accent-red: #ff5d5d;
+        --text: #e2e8f0;
+        --muted: #8a99b5;
+        --mono: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #04060c;
+        color: var(--text);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        overflow: hidden;
+        user-select: none;
+      }
+
+      #galaxy-canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        cursor: grab;
+      }
+
+      #galaxy-canvas:active {
+        cursor: grabbing;
+      }
+
+      /* Top Telemetry Bar */
+      #top-bar {
+        position: fixed;
+        top: 10px;
+        left: 10px;
+        right: 396px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .hud-card {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 7px 11px;
+        backdrop-filter: blur(8px);
+        pointer-events: auto;
+        font-size: 12px;
+        line-height: 1.35;
+      }
+
+      .hud-label {
+        color: var(--muted);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .mono {
+        font-family: var(--mono);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+
+      button {
+        background: #17223b;
+        color: var(--text);
+        border: 1px solid #2e436e;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: background 0.12s, border-color 0.12s;
+      }
+
+      button:hover:not(:disabled) {
+        background: #223459;
+        border-color: var(--accent);
+      }
+
+      button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      button.primary {
+        background: #1a4980;
+        border-color: var(--accent);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button.primary:hover:not(:disabled) {
+        background: #245ea3;
+      }
+
+      button.success {
+        background: #144936;
+        border-color: var(--accent-green);
+        color: #fff;
+        font-weight: 600;
+      }
+
+      button.danger {
+        background: #3d1a24;
+        border-color: #802f43;
+        color: #ff99a8;
+      }
+
+      input[type="text"] {
+        background: #0a0f1c;
+        border: 1px solid #2e436e;
+        color: var(--text);
+        border-radius: 4px;
+        padding: 4px 7px;
+        font-family: var(--mono);
+        font-size: 11px;
+        width: 175px;
+      }
+
+      input[type="text"]:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      /* Left Fleet & Log Outliner */
+      #left-sidebar {
+        position: fixed;
+        top: 138px;
+        left: 10px;
+        bottom: 48px;
+        width: 280px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .sidebar-panel {
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 10px;
+        pointer-events: auto;
+        overflow-y: auto;
+        max-height: 50%;
+      }
+
+      /* Right Inspector Panel */
+      #inspector {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: 376px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        backdrop-filter: blur(10px);
+        padding: 13px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        z-index: 10;
+      }
+
+      h2 {
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      h3 {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 5px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+        padding-bottom: 3px;
+      }
+
+      .stat-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 5px 10px;
+        font-size: 12px;
+      }
+
+      .stat-item {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .stat-val {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: #fff;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-family: var(--mono);
+        font-weight: 600;
+        white-space: nowrap;
+      }
+
+      .badge.delta {
+        background: rgba(61, 220, 151, 0.16);
+        color: var(--accent-green);
+        border: 1px solid rgba(61, 220, 151, 0.4);
+      }
+
+      .badge.enemy {
+        background: rgba(255, 93, 93, 0.16);
+        color: var(--accent-red);
+        border: 1px solid rgba(255, 93, 93, 0.4);
+      }
+
+      .badge.proc {
+        background: rgba(77, 166, 255, 0.15);
+        color: var(--accent);
+        border: 1px solid rgba(77, 166, 255, 0.35);
+      }
+
+      .badge.fow {
+        background: rgba(255, 190, 85, 0.15);
+        color: var(--accent-amber);
+        border: 1px solid rgba(255, 190, 85, 0.35);
+      }
+
+      .planet-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .planet-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 5px 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 11px;
+        transition: border-color 0.12s, background 0.12s;
+      }
+
+      .planet-row:hover,
+      .planet-row.selected {
+        background: rgba(77, 166, 255, 0.14);
+        border-color: var(--accent);
+      }
+
+      .bar-wrap {
+        height: 5px;
+        background: #141c2e;
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 2px;
+      }
+
+      .bar-fill {
+        height: 100%;
+        border-radius: 3px;
+      }
+
+      #bottom-help {
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        z-index: 10;
+        pointer-events: none;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      /* Cargo Transfer Modal Dialog */
+      #cargo-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(3, 6, 14, 0.75);
+        backdrop-filter: blur(6px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+
+      #cargo-modal-backdrop.open {
+        display: flex;
+      }
+
+      .cargo-modal {
+        background: #0d1322;
+        border: 1px solid #354c7c;
+        border-radius: 10px;
+        width: 680px;
+        max-width: 95vw;
+        padding: 18px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .cargo-columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+
+      .cargo-col {
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .slider-row {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .slider-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      .modal-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid var(--border);
+        padding-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="galaxy-canvas"></canvas>
+
+    <!-- Top Telemetry & Camera Controls -->
+    <div id="top-bar">
+      <div class="hud-card">
+        <div class="hud-label">Camera Position (Exact 1m BigInt)</div>
+        <div class="mono" id="hud-coords">X: 0 m | Y: 0 m</div>
+        <div class="mono" id="hud-cell" style="color: var(--muted); font-size: 11px">
+          Cell: (0, 0) | Scale: 1.00e+16 m/px
+        </div>
+      </div>
+
+      <div class="hud-card">
+        <div class="hud-label">Zoom Presets</div>
+        <div class="btn-row" style="margin-top: 3px">
+          <button id="btn-zoom-galaxy">Galaxy (100k ly)</button>
+          <button id="btn-zoom-sector">Nursery Sector (15 ly)</button>
+          <button id="btn-zoom-system">System (8 AU)</button>
+          <button id="btn-zoom-tactical">Tactical (1m/px)</button>
+        </div>
+      </div>
+
+      <div class="hud-card">
+        <div class="hud-label">Sim Speed (1x = 30m / Game Year)</div>
+        <div class="btn-row" style="margin-top: 3px" id="speed-buttons">
+          <button data-speed="0">Pause</button>
+          <button data-speed="1">1x (MMO)</button>
+          <button data-speed="5">5x</button>
+          <button data-speed="15" class="primary">15x (Blitz)</button>
+          <button data-speed="60">60x</button>
+          <button id="btn-new-game" class="danger" title="Reset Sandbox & Respawn Homeworld">
+            Reset Sandbox
+          </button>
+          <button id="btn-debug-reveal" title="Bypass Fog of War to inspect all planets and overlays">
+            Debug Reveal: OFF
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-card">
+        <div class="hud-label">Map Overlay Display (Multi-Planet Non-Diminishing Score)</div>
+        <div class="btn-row" style="margin-top: 3px" id="overlay-buttons">
+          <button data-overlay="normal" class="primary">Normal</button>
+          <button data-overlay="habitability">Habitability</button>
+          <button data-overlay="conc_iron">Ironium %</button>
+          <button data-overlay="conc_bora">Boranium %</button>
+          <button data-overlay="conc_germ">Germanium %</button>
+          <button data-overlay="abundance">Mineral Abundance (kT)</button>
+        </div>
+      </div>
+
+      <div class="hud-card">
+        <div class="hud-label">Direct 64-Bit ID Lookup</div>
+        <div class="btn-row" style="margin-top: 3px">
+          <input
+            type="text"
+            id="input-id-jump"
+            placeholder="0x8000_8000_0000_0000"
+            spellcheck="false"
+          />
+          <button id="btn-id-jump" class="primary">Jump</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Left Sidebar: Fleets, Colonies & Event Log -->
+    <div id="left-sidebar">
+      <div class="sidebar-panel" id="fleet-outliner"></div>
+      <div class="sidebar-panel" id="event-log-panel"></div>
+    </div>
+
+    <!-- Right Inspector Panel -->
+    <aside id="inspector">
+      <div id="inspector-content"></div>
+    </aside>
+
+    <!-- Bottom Help -->
+    <div id="bottom-help" class="hud-card">
+      <strong>Left-Click:</strong> Select &bull;
+      <strong>Double-Click Star:</strong> System/Sector View &bull;
+      <strong>Right-Click:</strong> Launch Fleet &bull;
+      <strong>Shift+Right-Click:</strong> Add Gravity-Assist Waypoint &bull;
+      <strong>Scroll:</strong> Fine Zoom
+    </div>
+
+    <!-- Fine-Grained Cargo & Colonist Transfer Modal -->
+    <div id="cargo-modal-backdrop">
+      <div class="cargo-modal" id="cargo-modal-content"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
