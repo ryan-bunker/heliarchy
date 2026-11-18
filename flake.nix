@@ -1,5 +1,5 @@
 {
-  description = "Singularity - Procedural Galaxy 4X Prototype";
+  description = "Heliarchy - Procedural Galaxy 4X Prototype";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

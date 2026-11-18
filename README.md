@@ -1,6 +1,6 @@
-# Singularity (Prototype)
+# Heliarchy (Prototype)
 
-A browser-based TypeScript + `BigInt` prototype for **Singularity**, a real-time 2D massive multiplayer 4X space strategy game inspired by *Stars!* (1995).
+A browser-based TypeScript + `BigInt` prototype for **Heliarchy**, a real-time 2D massive multiplayer 4X space strategy game inspired by *Stars!* (1995).
 
 This prototype validates the core technical and gameplay foundations before porting the simulation core to Rust/WebAssembly and adding a multiplayer backend (see [ROADMAP.md](./ROADMAP.md)).
 

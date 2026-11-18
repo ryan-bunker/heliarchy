@@ -12,7 +12,7 @@ import {
   unpackId,
 } from "./galaxy";
 
-const STORAGE_KEY = "singularity_sandbox_state_v5";
+const STORAGE_KEY = "heliarchy_sandbox_state_v5";
 
 /**
  * 1 Stars! Game Year (Turn) = 30.0 Simulation Minutes at 1x Persistent MMO speed.

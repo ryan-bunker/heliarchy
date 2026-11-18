@@ -1,4 +1,4 @@
-# Singularity — Architecture & Development Roadmap
+# Heliarchy — Architecture & Development Roadmap
 
 A real-time, massive multiplayer 2D space strategy game inspired by *Stars!* (1995), set in a realistically scaled procedural galaxy (~200+ billion stars across 100,000 light-years) with **1-meter coordinate granularity** and **zero upfront database storage**.
 
