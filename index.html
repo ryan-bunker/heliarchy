@@ -48,7 +48,7 @@
         position: fixed;
         top: 10px;
         left: 10px;
-        right: 396px;
+        right: 460px;
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
@@ -177,17 +177,31 @@
         top: 10px;
         right: 10px;
         bottom: 10px;
-        width: 376px;
+        width: 440px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-y: auto;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      #inspector-content {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .inspector-card {
         background: var(--bg-panel);
         border: 1px solid var(--border);
         border-radius: 8px;
         backdrop-filter: blur(10px);
         padding: 13px;
+        pointer-events: auto;
         display: flex;
         flex-direction: column;
-        gap: 10px;
-        overflow-y: auto;
-        z-index: 10;
+        gap: 7px;
       }
 
       h2 {
@@ -295,6 +309,18 @@
         margin-top: 2px;
       }
 
+      .bar-segmented {
+        display: flex;
+        align-items: center;
+        margin-top: 2px;
+      }
+
+      .bar-segmented .bar-wrap {
+        flex: 1;
+        margin-top: 0;
+        min-width: 2px;
+      }
+
       .bar-fill {
         height: 100%;
         border-radius: 3px;
@@ -310,8 +336,9 @@
         color: var(--muted);
       }
 
-      /* Cargo Transfer Modal Dialog */
-      #cargo-modal-backdrop {
+      /* Cargo & Production Modal Dialogs */
+      #cargo-modal-backdrop,
+      #production-modal-backdrop {
         position: fixed;
         inset: 0;
         background: rgba(3, 6, 14, 0.75);
@@ -322,7 +349,8 @@
         z-index: 100;
       }
 
-      #cargo-modal-backdrop.open {
+      #cargo-modal-backdrop.open,
+      #production-modal-backdrop.open {
         display: flex;
       }
 
@@ -332,11 +360,49 @@
         border-radius: 10px;
         width: 680px;
         max-width: 95vw;
+        max-height: 90vh;
+        overflow-y: auto;
         padding: 18px;
         box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
         display: flex;
         flex-direction: column;
         gap: 14px;
+      }
+
+      .production-modal {
+        width: 720px;
+      }
+
+      .queue-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        background: rgba(255, 255, 255, 0.025);
+        font-size: 11px;
+      }
+
+      .queue-row.active {
+        border-color: var(--accent-green);
+        background: rgba(16, 185, 129, 0.07);
+      }
+
+      .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+
+      .catalog-item-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        padding: 7px 9px;
+        text-align: left;
       }
 
       .cargo-columns {
@@ -406,7 +472,7 @@
       </div>
 
       <div class="hud-card">
-        <div class="hud-label">Sim Speed (1x = 30m / Game Year)</div>
+        <div class="hud-label">Sim Speed (1x = 15m / Game Year)</div>
         <div class="btn-row" style="margin-top: 3px" id="speed-buttons">
           <button data-speed="0">Pause</button>
           <button data-speed="1">1x (MMO)</button>
@@ -471,6 +537,11 @@
     <!-- Fine-Grained Cargo & Colonist Transfer Modal -->
     <div id="cargo-modal-backdrop">
       <div class="cargo-modal" id="cargo-modal-content"></div>
+    </div>
+
+    <!-- Stars!-Style Production Queue Modal -->
+    <div id="production-modal-backdrop">
+      <div class="cargo-modal production-modal" id="production-modal-content"></div>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

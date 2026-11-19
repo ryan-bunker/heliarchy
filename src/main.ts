@@ -14,7 +14,7 @@ import {
   StarData,
   unpackId,
 } from "./galaxy";
-import { BUILD_CATALOG, BuildableType, deltaStore, Fleet } from "./deltas";
+import { BUILD_CATALOG, BuildableType, deltaStore, Fleet, MAX_QUEUE_ITEM_COUNT } from "./deltas";
 
 const canvas = document.getElementById("galaxy-canvas") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
@@ -641,10 +641,14 @@ function renderLeftSidebar(simNowMs: number): void {
       ${knownDeltas
         .map(({ id, delta }) => {
           const isPlayer = delta.owner === "Player";
+          const colStar = getStarById(id);
+          const { planetIndex } = unpackId(id);
+          const colPlanet = colStar && planetIndex >= 1 ? getPlanetsForStar(colStar)[planetIndex - 1] : null;
+          const displayName = delta.customName || colPlanet?.name || formatId(id).slice(0, 14);
           return `
             <div class="planet-row" data-jumpid="${delta.planetIdHex}">
               <div>
-                <strong>${delta.customName || formatId(id).slice(0, 12)}</strong>
+                <strong>${displayName}</strong>
                 <div style="font-size: 10px; color: var(--muted);">${delta.mines}M / ${delta.factories}F ${delta.hasStarbase ? "&bull; ★ Starbase" : ""}</div>
               </div>
               <span class="badge ${isPlayer ? "delta" : "enemy"}">${delta.owner}</span>
@@ -688,8 +692,14 @@ function renderLeftSidebar(simNowMs: number): void {
   });
 
   const logs = deltaStore.getLogs();
+  const epochMs = deltaStore.getSimEpochBaseMs();
   eventLogPanel.innerHTML = `
-    <h3>Sector Telemetry &amp; Combat Log</h3>
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255, 255, 255, 0.07); padding-bottom: 4px; margin-bottom: 5px;">
+      <h3 style="margin: 0; border: none; padding: 0;">Sector Telemetry &amp; Combat Log</h3>
+      <button id="btn-export-telemetry" style="padding: 1px 6px; font-size: 10px;" title="Copy/Download JSON telemetry &amp; timestamped event log for balance debugging">
+        Export Log
+      </button>
+    </div>
     <div style="display: flex; flex-direction: column; gap: 4px; font-size: 11px;">
       ${logs
         .map((l) => {
@@ -699,16 +709,42 @@ function renderLeftSidebar(simNowMs: number): void {
               : l.type === "colony"
                 ? "var(--accent-green)"
                 : "var(--text)";
-          return `<div style="color: ${color}; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 3px;">&bull; ${l.message}</div>`;
+          const yr = (l.gameYear ?? deltaStore.getGameYear(l.simTimeMs)).toFixed(2);
+          const simElapsedSec = Math.max(0, Math.round((l.simTimeMs - epochMs) / 1000));
+          const simMin = Math.floor(simElapsedSec / 60);
+          const simSec = simElapsedSec % 60;
+          const realStr = l.realTimeMs ? new Date(l.realTimeMs).toLocaleTimeString() : "N/A";
+          const tooltip = `Year ${yr} | Sim Elapsed: +${simMin}m ${simSec}s | Real Time: ${realStr}`;
+          return `<div title="${tooltip}" style="color: ${color}; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 3px; cursor: help;">&bull; ${l.message}</div>`;
         })
         .join("")}
     </div>
   `;
+
+  const btnExport = document.getElementById("btn-export-telemetry") as HTMLButtonElement | null;
+  btnExport?.addEventListener("click", async () => {
+    const json = deltaStore.exportDebugTelemetry();
+    try {
+      await navigator.clipboard.writeText(json);
+      btnExport.textContent = "Copied!";
+      setTimeout(() => {
+        btnExport.textContent = "Export Log";
+      }, 1500);
+    } catch {
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `heliarchy-telemetry-Y${deltaStore.getGameYear().toFixed(1)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
 }
 
 function renderInspector(simNowMs: number): void {
   if (!selectedStar) {
-    inspectorContent.innerHTML = `<div style="color: var(--muted)">Click any star or planet to inspect.</div>`;
+    inspectorContent.innerHTML = `<div class="inspector-card" style="color: var(--muted)">Click any star or planet to inspect.</div>`;
     return;
   }
 
@@ -737,9 +773,33 @@ function renderInspector(simNowMs: number): void {
     const state = deltaStore.evaluate(activePlanet, simNowMs);
     const pos = getPlanetPositionMeters(star, activePlanet, simNowMs);
 
+    const shipsInOrbitHtml = `
+      <h3>Ships in Orbit (${orbitingPlayerFleets.length})</h3>
+      ${
+        orbitingPlayerFleets.length === 0
+          ? `<div style="font-size: 11px; color: var(--muted); margin-bottom: 8px;">No friendly ships in orbit.</div>`
+          : `<div class="planet-list" style="margin-bottom: 8px;">
+              ${orbitingPlayerFleets
+                .map((of) => {
+                  const isSelF = of.id === selectedFleetId;
+                  return `
+                    <div class="planet-row ${isSelF ? "selected" : ""}" data-selectorbitfleet="${of.id}">
+                      <div>
+                        <strong>${of.name}</strong>
+                        <div style="font-size: 10px; color: var(--muted);">${formatShipSummary(of)}</div>
+                      </div>
+                      <span class="badge ${isSelF ? "delta" : "proc"}">${isSelF ? "SELECTED" : `Fuel ${Math.round(of.fuelPct)}%`}</span>
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>`
+      }
+    `;
+
     if (!isScanned && !state.isModified) {
       planetDetailHtml = `
-        <div style="margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--border);">
+        <div class="inspector-card">
           <h2>
             <span>${activePlanet.name}</span>
             <span class="badge fow">UNSCANNED FOG OF WAR</span>
@@ -747,8 +807,9 @@ function renderInspector(simNowMs: number): void {
           <div class="mono" style="font-size: 11px; color: var(--accent); margin: 4px 0 8px;">
             ID: ${formatId(activePlanet.id)}
           </div>
+          ${shipsInOrbitHtml}
           <p style="font-size: 12px; color: var(--muted); margin-bottom: 10px;">
-            Planetary habitability and mineral concentrations are unknown. Dispatch a <strong>Scout</strong> or fleet within scanner range to chart this system.
+            Planetary habitability and mineral concentrations are unknown. Dispatch a <strong>Scout</strong> to survey this system.
           </p>
           <div class="stat-grid">
             <div class="stat-item">
@@ -771,15 +832,9 @@ function renderInspector(simNowMs: number): void {
             : "var(--accent-red)";
 
       const colonizerFleet = orbitingPlayerFleets.find((f) => f.ships.colony > 0);
-      const cargoCapableFleets = orbitingPlayerFleets.filter(
-        (f) =>
-          f.ships.colony > 0 ||
-          f.ships.freighter > 0 ||
-          f.cargo.ironium + f.cargo.boranium + f.cargo.germanium + f.cargo.colonists > 0,
-      );
 
       planetDetailHtml = `
-        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+        <div class="inspector-card">
           <h2>
             <span>${state.displayName}</span>
             <span class="badge ${state.isModified ? (state.owner === "Player" ? "delta" : "enemy") : "proc"}">
@@ -797,7 +852,9 @@ function renderInspector(simNowMs: number): void {
             </button>
           </div>
 
-          <h3>Real-Time 1-Meter Orbital Telemetry</h3>
+          ${shipsInOrbitHtml}
+
+          <h3>Orbital Telemetry &amp; Planet Stats</h3>
           <div class="stat-grid" style="margin-bottom: 8px;">
             <div class="stat-item" style="grid-column: span 2;">
               <span class="hud-label">Global X / Y (Exact Meters)</span>
@@ -851,7 +908,7 @@ function renderInspector(simNowMs: number): void {
                           Found Colony using ${colonizerFleet.name} (${colonizerFleet.cargo.colonists.toLocaleString()} Colonists)
                          </button>`
                       : `<p style="font-size: 11px; color: var(--accent-amber);">
-                          <strong>${colonizerFleet.name}</strong> is in orbit with a Colony Ship, but has <strong>0 Colonists</strong> loaded! Return it to one of your colonies and click <em>+Load 25k Colonists</em>.
+                          <strong>${colonizerFleet.name}</strong> is in orbit with a Colony Ship, but has <strong>0 Colonists</strong> loaded! Return it to one of your colonies and load colonists.
                          </p>`
                     : `<p style="font-size: 11px; color: var(--muted);">
                         To colonize this planet, send a fleet with a <strong>Colony Ship</strong> (carrying colonists) into orbit around it.
@@ -884,82 +941,87 @@ function renderInspector(simNowMs: number): void {
                     </div>
                   </div>
 
-                  ${
-                    cargoCapableFleets.length > 0
-                      ? `
-                      <h3>Orbiting Fleet Cargo &amp; Colonist Loading</h3>
-                      <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px;">
-                        ${cargoCapableFleets
-                          .map((cf) => {
-                            const cap = deltaStore.getFleetCargoCapacity(cf.ships);
-                            const curMin = cf.cargo.ironium + cf.cargo.boranium + cf.cargo.germanium;
-                            return `
-                              <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 5px; padding: 6px; font-size: 11px;">
-                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                                  <strong>${cf.name}</strong>
-                                  <span class="mono" style="color: var(--accent); font-size: 10px;">
-                                    Pop: ${cf.cargo.colonists.toLocaleString()}/${cap.maxColonists.toLocaleString()} &bull; Min: ${curMin}/${cap.maxMineralsKt}kT
-                                  </span>
-                                </div>
-                                <div class="btn-row">
-                                  <button data-opencargomodal="${cf.id}" class="primary">
-                                    Transfer Cargo (Sliders)...
-                                  </button>
-                                  <button data-cargofleet="${cf.id}" data-cargomode="load_colonists" ${cf.cargo.colonists >= cap.maxColonists ? "disabled" : ""}>
-                                    +25k Pop
-                                  </button>
-                                  <button data-cargofleet="${cf.id}" data-cargomode="unload" ${cf.cargo.colonists + curMin === 0 ? "disabled" : ""}>
-                                    Unload All
-                                  </button>
-                                </div>
-                              </div>
-                            `;
-                          })
-                          .join("")}
+                  <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 5px; padding: 7px; font-size: 11px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 5px;">
+                      <div style="display: flex; align-items: center; gap: 6px;">
+                        <span class="hud-label">Production Queue (${state.buildQueue.length})</span>
+                        ${state.hasStarbase ? `<span class="badge delta" style="font-size: 9px;">★ Starbase</span>` : ""}
                       </div>
-                    `
-                      : ""
-                  }
-
-                  <div class="hud-label" style="margin-bottom: 4px;">Add to Build Queue:</div>
-                  <div class="btn-row" style="margin-bottom: 6px;">
-                    <button data-build="mine" title="Costs 5 Resources, 0 Minerals">+1 Mine (5R)</button>
-                    <button data-build="factory" title="Costs 10 Resources + 4kT Germanium">+1 Factory (10R, 4Ge)</button>
-                    ${!state.hasStarbase ? `<button data-build="starbase" class="primary">Build Starbase (100R)</button>` : `<span class="badge delta" style="align-self:center;">★ Starbase Active</span>`}
-                  </div>
-                  <div class="btn-row" style="margin-bottom: 8px;">
-                    <button data-build="scout" ${!state.hasStarbase ? "disabled" : ""}>Scout (25R)</button>
-                    <button data-build="colony" ${!state.hasStarbase ? "disabled" : ""}>Colony Ship (65R)</button>
-                    <button data-build="freighter" ${!state.hasStarbase ? "disabled" : ""}>Freighter (45R)</button>
-                    <button data-build="destroyer" ${!state.hasStarbase ? "disabled" : ""}>Destroyer (90R)</button>
-                  </div>
-
-                  <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 5px; padding: 6px; font-size: 11px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                      <span class="hud-label">Active Queue (${state.buildQueue.length})</span>
-                      ${state.buildQueue.length > 0 ? `<button id="btn-clear-queue" style="padding: 1px 5px; font-size: 10px;">Clear</button>` : ""}
+                      <div style="display: flex; gap: 4px;">
+                        <button id="btn-open-production" class="primary" style="padding: 2px 7px; font-size: 10px;">Manage Queue</button>
+                        ${state.buildQueue.length > 0 ? `<button id="btn-clear-queue" style="padding: 2px 6px; font-size: 10px;">Clear</button>` : ""}
+                      </div>
                     </div>
                     ${
                       state.buildQueue.length === 0
-                        ? `<div style="color: var(--muted);">Queue idle. Add structures or ships above.</div>`
-                        : state.buildQueue
-                            .map((item, idx) => {
-                              const spec = BUILD_CATALOG[item.type];
-                              const pct =
-                                idx === 0
-                                  ? Math.min(100, Math.round((item.progressResources / spec.resources) * 100))
+                        ? `<div style="color: var(--muted);">Queue idle. Click <strong>Manage Queue</strong> to add structures or ships.</div>`
+                        : (() => {
+                            const pDelta = deltaStore.getDelta(activePlanet.id);
+                            const activeIdx = pDelta
+                              ? state.buildQueue.findIndex(
+                                  (q) => !deltaStore.isQueueItemAtCap(q, pDelta, state),
+                                )
+                              : 0;
+                            const elapsedSinceCheckpointMin = pDelta
+                              ? Math.max(0, (simNowMs - pDelta.lastCheckpointSimMs) / 60_000)
+                              : 0;
+                            return state.buildQueue
+                              .map((item, idx) => {
+                                const spec = BUILD_CATALOG[item.type];
+                                const isAtCap = pDelta ? deltaStore.isQueueItemAtCap(item, pDelta, state) : false;
+                                const isActive = idx === activeIdx;
+                                const liveProgress = isActive
+                                  ? Math.min(
+                                      spec.resources,
+                                      item.progressResources + state.resourcesPerMin * elapsedSinceCheckpointMin,
+                                    )
                                   : 0;
-                              return `
-                                <div style="margin-bottom: 4px;">
-                                  <div style="display: flex; justify-content: space-between;">
-                                    <span>${item.count}x <strong>${spec.label}</strong></span>
-                                    <span class="mono">${idx === 0 ? `${Math.round(item.progressResources)}/${spec.resources}R (${pct}%)` : `${spec.resources}R each`}</span>
+                                const pct = isActive
+                                  ? Math.min(100, (liveProgress / spec.resources) * 100)
+                                  : 0;
+                                const capText =
+                                  item.autoRepeat && (item.type === "mine" || item.type === "factory")
+                                    ? item.autoCap === "operable" || item.autoCap === undefined
+                                      ? `Cap: Op(${Math.min(state.workerCapStructures, state.maxPlanetStructures)})`
+                                      : `Cap: ${item.autoCap}`
+                                    : "";
+                                const filledSlices = item.batchBuilt ?? 0;
+                                const totalSlices = item.autoRepeat
+                                  ? Math.max(1, item.count)
+                                  : Math.max(1, filledSlices + item.count);
+                                const progressBarsHtml = isActive
+                                  ? `<div class="bar-segmented" style="gap: ${totalSlices > 20 ? 1 : 2}px;">
+                                      ${Array.from({ length: totalSlices }, (_, sIdx) => {
+                                        const slicePct =
+                                          sIdx < filledSlices
+                                            ? "100%"
+                                            : sIdx === filledSlices
+                                              ? `${pct.toFixed(1)}%`
+                                              : "0%";
+                                        const barId = sIdx === filledSlices ? 'id="live-queue-progress-bar"' : "";
+                                        return `<div class="bar-wrap"><div ${barId} class="bar-fill" style="width: ${slicePct}; background: var(--accent-green);"></div></div>`;
+                                      }).join("")}
+                                    </div>`
+                                  : "";
+                                return `
+                                  <div style="margin-bottom: 4px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
+                                      <span>
+                                        <span style="${item.autoRepeat ? "color: var(--accent-green);" : ""}">${item.autoRepeat ? "&#8635; " : ""}${item.count}x <strong>${spec.label}</strong></span>
+                                        ${capText ? `<span style="color: var(--muted); font-size: 10px;">(${capText})</span>` : ""}
+                                        ${isAtCap ? `<span class="badge fow" style="font-size: 9px; margin-left: 3px;">AT CAP</span>` : ""}
+                                      </span>
+                                      <div style="display: flex; align-items: center; gap: 4px;">
+                                        <span ${isActive ? 'id="live-queue-progress-text"' : ""} class="mono" style="font-size: 10px; color: ${isActive ? "var(--text)" : "var(--muted)"};">${isActive ? `${Math.round(liveProgress)}/${spec.resources}R (${Math.round(pct)}%)` : `${spec.resources}R`}</span>
+                                        <button data-removeq="${idx}" style="padding: 1px 4px; font-size: 9px;" title="Remove from queue">&times;</button>
+                                      </div>
+                                    </div>
+                                    ${progressBarsHtml}
                                   </div>
-                                  ${idx === 0 ? `<div class="bar-wrap"><div class="bar-fill" style="width: ${pct}%; background: var(--accent-green);"></div></div>` : ""}
-                                </div>
-                              `;
-                            })
-                            .join("")
+                                `;
+                              })
+                              .join("");
+                          })()
                     }
                   </div>
                 `
@@ -974,12 +1036,186 @@ function renderInspector(simNowMs: number): void {
     }
   }
 
+  // SECTION 3: SHIP INFO (Placed cleanly below Planet Info)
+  let shipSectionHtml = "";
+  if (activeFleet) {
+    const pwr = deltaStore.getFleetPowerState(activeFleet, simNowMs);
+    const totalShips =
+      activeFleet.ships.scout +
+      activeFleet.ships.colony +
+      activeFleet.ships.freighter +
+      activeFleet.ships.destroyer;
+    const coOrbitingCount =
+      activeFleet.orbitTargetId !== null
+        ? deltaStore
+            .getAllFleets()
+            .filter(
+              (f) =>
+                f.owner === "Player" &&
+                f.id !== activeFleet.id &&
+                f.orbitTargetId === activeFleet.orbitTargetId,
+            ).length
+        : 0;
+
+    // Location & clickable orbit jump button
+    let orbitTargetName = "";
+    let orbitingFriendlyColony: PlanetData | null = null;
+    if (activeFleet.orbitTargetId !== null) {
+      const orbStar = getStarById(activeFleet.orbitTargetId);
+      const { planetIndex: orbPIdx } = unpackId(activeFleet.orbitTargetId);
+      const orbPlanet =
+        orbStar && orbPIdx >= 1 ? getPlanetsForStar(orbStar)[orbPIdx - 1] ?? null : null;
+      orbitTargetName = orbPlanet ? orbPlanet.name : orbStar?.name ?? formatId(activeFleet.orbitTargetId);
+      if (orbPlanet) {
+        const orbDelta = deltaStore.getDelta(orbPlanet.id);
+        if (orbDelta && orbDelta.owner === "Player") {
+          orbitingFriendlyColony = orbPlanet;
+        }
+      }
+    }
+
+    const cap = deltaStore.getFleetCargoCapacity(activeFleet.ships);
+    const curMin = activeFleet.cargo.ironium + activeFleet.cargo.boranium + activeFleet.cargo.germanium;
+    const isCargoCapable = cap.maxColonists > 0 || cap.maxMineralsKt > 0;
+
+    const planned = activeFleet.plannedRoute ?? [];
+    const hasPlannedRoute = planned.length > 0;
+    const previewTargets = hasPlannedRoute ? planned : [targetObjectId];
+    const routePlan = deltaStore.evaluateRoutePlan(activeFleet, previewTargets, simNowMs);
+    const fuelCostColor = routePlan.canAffordFuel ? "var(--accent-green)" : "var(--accent-red)";
+
+    shipSectionHtml = `
+      <div class="inspector-card">
+        <h2>
+          <span>&#9992; ${activeFleet.name}</span>
+          ${
+            activeFleet.orbitTargetId !== null
+              ? `<button id="btn-jump-ship-orbit" class="primary" style="padding: 2px 7px; font-size: 10px;" title="Select and center on ${orbitTargetName}">
+                  In Orbit: ${orbitTargetName} &rarr;
+                 </button>`
+              : `<span class="badge fow">In Transit</span>`
+          }
+        </h2>
+
+        <div class="stat-grid">
+          <div class="stat-item">
+            <span class="hud-label">Composition</span>
+            <span class="stat-val" style="font-size: 11px;">${formatShipSummary(activeFleet)}</span>
+          </div>
+          <div class="stat-item">
+            <span class="hud-label">Fuel / Power</span>
+            <span class="stat-val" style="font-size: 11px;">${Math.round(activeFleet.fuelPct)}% Fuel &bull; ${pwr.powerPct}% Pwr</span>
+          </div>
+        </div>
+
+        ${
+          isCargoCapable
+            ? `
+          <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 5px; padding: 6px; font-size: 11px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+              <span class="hud-label">Cargo Loadout</span>
+              <span class="mono" style="color: var(--accent); font-size: 10px;">
+                Pop: ${activeFleet.cargo.colonists.toLocaleString()}/${cap.maxColonists.toLocaleString()} &bull; Min: ${curMin}/${cap.maxMineralsKt}kT
+              </span>
+            </div>
+            ${
+              orbitingFriendlyColony
+                ? `
+              <div class="btn-row">
+                <button id="btn-ship-cargo-modal" class="primary">Transfer Cargo (Sliders)...</button>
+                <button id="btn-ship-load-pop" ${activeFleet.cargo.colonists >= cap.maxColonists ? "disabled" : ""}>+25k Pop</button>
+                <button id="btn-ship-unload" ${activeFleet.cargo.colonists + curMin === 0 ? "disabled" : ""}>Unload All</button>
+              </div>
+            `
+                : `<div style="font-size: 10px; color: var(--muted);">Orbit a friendly colony to load or unload cargo.</div>`
+            }
+          </div>
+        `
+            : ""
+        }
+
+        ${
+          activeFleet.orbitTargetId !== null && (coOrbitingCount > 0 || totalShips > 1)
+            ? `
+          <div class="btn-row">
+            <button id="btn-merge-fleets" ${coOrbitingCount === 0 ? "disabled" : ""}>
+              Merge Orbiting (${coOrbitingCount})
+            </button>
+            <button id="btn-split-fleet" ${totalShips <= 1 ? "disabled" : ""}>
+              Split Ships (${totalShips})
+            </button>
+          </div>
+        `
+            : ""
+        }
+
+        <!-- Propulsion & Route Planner -->
+        <div style="background: rgba(77, 166, 255, 0.08); border: 1px solid rgba(77, 166, 255, 0.35); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 11px;">
+              <div class="hud-label">Propulsion &amp; Route Planner</div>
+              <span>Target: <strong>${targetLabel}</strong></span>
+            </div>
+            <button id="btn-send-fleet-here" class="primary" ${!pwr.isPowered || !routePlan.canAffordFuel ? "disabled" : ""}>
+              ${hasPlannedRoute ? `Launch Tour (${routePlan.totalFuelRequiredPct}%)` : `Launch (${routePlan.totalFuelRequiredPct}%)`}
+            </button>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);">
+            <span>Cruise: <strong class="mono" style="color: var(--accent);">${deltaStore.getFleetCruiseSpeedLyPerMin(activeFleet)} ly/m</strong></span>
+            <span>ETA: <strong class="mono" style="color: var(--text);">${routePlan.totalEtaGameYears} yrs (${routePlan.totalEtaSimSeconds}s)</strong></span>
+            <span>Left: <strong class="mono" style="color: ${fuelCostColor};">${routePlan.remainingFuelAfterPct}%</strong></span>
+          </div>
+
+          <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.07); border-radius: 5px; padding: 5px 7px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
+              <span class="hud-label">Thrust / Burn Intensity (1–10)</span>
+              <strong class="mono" style="color: var(--accent);">Burn ${activeFleet.burnLevel ?? 5}</strong>
+            </div>
+            <input type="range" id="slider-burn-level" min="1" max="10" step="1" value="${activeFleet.burnLevel ?? 5}" />
+          </div>
+
+          <div class="btn-row">
+            <button id="btn-mode-orbit" class="${activeFleet.burnMode === "orbit" ? "primary" : ""}" style="flex: 1;">
+              Final: Brake to Orbit (+${Math.max(4, Math.round(25 * deltaStore.getBurnFuelFactor(activeFleet.burnLevel ?? 5)))}%)
+            </button>
+            <button id="btn-mode-flyby" class="${activeFleet.burnMode === "flyby" ? "primary" : ""}" style="flex: 1;">
+              Final: Flyby Coast (0%)
+            </button>
+          </div>
+
+          <div style="background: rgba(0, 0, 0, 0.32); border: 1px solid var(--border); border-radius: 5px; padding: 6px; font-size: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span class="hud-label">${hasPlannedRoute ? `Planned Tour (${planned.length} Stops)` : `Route Preview`}</span>
+              <div class="btn-row">
+                <button id="btn-route-add" style="padding: 1px 6px; font-size: 10px;">+ Add ${targetLabel}</button>
+                ${hasPlannedRoute ? `<button id="btn-route-undo" style="padding: 1px 5px; font-size: 10px;">Undo</button>` : ""}
+                ${hasPlannedRoute ? `<button id="btn-route-clear" style="padding: 1px 5px; font-size: 10px;">Clear</button>` : ""}
+              </div>
+            </div>
+            ${routePlan.legs
+              .map(
+                (leg) => `
+                <div style="display: flex; justify-content: space-between; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.05);">
+                  <span><strong>#${leg.legIndex} ${leg.targetName}</strong> (${leg.distLy} ly)</span>
+                  <span class="mono" style="color: var(--accent-amber);">-${leg.legTotalFuelPct}% [${leg.maneuverLabel}]</span>
+                </div>
+              `,
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   const signalRemSec = pendingSignal
     ? Math.max(0, Math.ceil((pendingSignal.arrivalSimMs - simNowMs) / 1000))
     : 0;
 
   inspectorContent.innerHTML = `
-    <div>
+    <!-- SECTION 1: STAR INFO -->
+    <div class="inspector-card">
       <h2>
         <span style="display: flex; align-items: center; gap: 7px;">
           <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${star.color};box-shadow:0 0 8px ${star.color}"></span>
@@ -992,137 +1228,6 @@ function renderInspector(simNowMs: number): void {
       <div class="mono" style="font-size: 11px; color: var(--accent); margin: 3px 0 7px;">
         Star ID: ${formatId(star.id)} &bull; Cell (${star.cellX}, ${star.cellY})
       </div>
-
-      ${
-        activeFleet
-          ? (() => {
-              const pwr = deltaStore.getFleetPowerState(activeFleet, simNowMs);
-              const totalShips =
-                activeFleet.ships.scout +
-                activeFleet.ships.colony +
-                activeFleet.ships.freighter +
-                activeFleet.ships.destroyer;
-              const coOrbitingCount =
-                activeFleet.orbitTargetId !== null
-                  ? deltaStore
-                      .getAllFleets()
-                      .filter(
-                        (f) =>
-                          f.owner === "Player" &&
-                          f.id !== activeFleet.id &&
-                          f.orbitTargetId === activeFleet.orbitTargetId,
-                      ).length
-                  : 0;
-
-              const planned = activeFleet.plannedRoute ?? [];
-              const hasPlannedRoute = planned.length > 0;
-              const previewTargets = hasPlannedRoute ? planned : [targetObjectId];
-              const routePlan = deltaStore.evaluateRoutePlan(
-                activeFleet,
-                previewTargets,
-                simNowMs,
-              );
-
-              const fuelCostColor = routePlan.canAffordFuel
-                ? "var(--accent-green)"
-                : "var(--accent-red)";
-
-              return `
-          <div style="background: rgba(77, 166, 255, 0.08); border: 1px solid rgba(77, 166, 255, 0.35); border-radius: 6px; padding: 8px; margin-bottom: 9px; display: flex; flex-direction: column; gap: 6px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <div style="font-size: 11px;">
-                <div class="hud-label">Gravity-Assist Route Planner &amp; Propulsion</div>
-                <strong>${activeFleet.name}</strong>
-              </div>
-              <button id="btn-send-fleet-here" class="primary" ${!pwr.isPowered || !routePlan.canAffordFuel ? "disabled" : ""}>
-                ${hasPlannedRoute ? `Launch Tour (${routePlan.totalFuelRequiredPct}% Fuel)` : `Launch (${routePlan.totalFuelRequiredPct}% Fuel)`}
-              </button>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);">
-              <span>Tank: <strong class="mono" style="color: var(--text);">${Math.round(activeFleet.fuelPct)}%</strong></span>
-              <span>Plan Cost: <strong class="mono" style="color: ${fuelCostColor};">${routePlan.totalFuelRequiredPct}% Fuel</strong> (${routePlan.remainingFuelAfterPct}% left)</span>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted);">
-              <span>Cruise: <strong class="mono" style="color: var(--accent);">${deltaStore.getFleetCruiseSpeedLyPerMin(activeFleet)} ly/m</strong></span>
-              <span>ETA: <strong class="mono" style="color: var(--text);">${routePlan.totalEtaGameYears} yrs (${routePlan.totalEtaSimSeconds}s sim)</strong></span>
-            </div>
-
-            <!-- Burn Intensity Slider (1..10, like Stars! Warp 1..10) -->
-            <div style="background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.07); border-radius: 5px; padding: 5px 7px;">
-              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 2px;">
-                <span class="hud-label">Thrust / Burn Intensity (1–10)</span>
-                <strong class="mono" style="color: var(--accent);">Burn ${activeFleet.burnLevel ?? 5}</strong>
-              </div>
-              <input
-                type="range"
-                id="slider-burn-level"
-                min="1"
-                max="10"
-                step="1"
-                value="${activeFleet.burnLevel ?? 5}"
-                title="Lower Burn = slower cruise, much lower fuel per star (visit more stars). Higher Burn = fast sprint, high fuel cost."
-              />
-              <div style="display: flex; justify-content: space-between; font-size: 9px; color: var(--muted);">
-                <span>1: Max Range Drift</span>
-                <span>5: Standard</span>
-                <span>10: Max Overburn</span>
-              </div>
-            </div>
-
-            <div class="btn-row">
-              <button id="btn-mode-orbit" class="${activeFleet.burnMode === "orbit" ? "primary" : ""}" style="flex: 1;" title="Reserves braking fuel at the final waypoint to enter orbit">
-                Final: Brake to Orbit (+${Math.max(4, Math.round(25 * deltaStore.getBurnFuelFactor(activeFleet.burnLevel ?? 5)))}% Fuel)
-              </button>
-              <button id="btn-mode-flyby" class="${activeFleet.burnMode === "flyby" ? "primary" : ""}" style="flex: 1;" title="0% braking fuel at final waypoint (1.65x speed, coasts into deep space)">
-                Final: Flyby Coast (0% Brake)
-              </button>
-            </div>
-
-            <!-- Route Legs & Fuel Breakdown -->
-            <div style="background: rgba(0, 0, 0, 0.32); border: 1px solid var(--border); border-radius: 5px; padding: 6px; font-size: 10px;">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span class="hud-label">${hasPlannedRoute ? `Planned Tour (${planned.length} Stops)` : `Single-Target Fuel Preview`}</span>
-                <div class="btn-row">
-                  <button id="btn-route-add" style="padding: 1px 6px; font-size: 10px;" title="Append ${targetLabel} as a Gravity-Assist Waypoint (or Shift+Right-Click on map)">
-                    + Add ${targetLabel}
-                  </button>
-                  ${hasPlannedRoute ? `<button id="btn-route-undo" style="padding: 1px 5px; font-size: 10px;">Undo</button>` : ""}
-                  ${hasPlannedRoute ? `<button id="btn-route-clear" style="padding: 1px 5px; font-size: 10px;">Clear</button>` : ""}
-                </div>
-              </div>
-              ${routePlan.legs
-                .map(
-                  (leg) => `
-                  <div style="display: flex; justify-content: space-between; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.05);">
-                    <span><strong>#${leg.legIndex} ${leg.targetName}</strong> (${leg.distLy} ly)</span>
-                    <span class="mono" style="color: var(--accent-amber);">-${leg.legTotalFuelPct}% [${leg.maneuverLabel}]</span>
-                  </div>
-                `,
-                )
-                .join("")}
-            </div>
-
-            ${
-              activeFleet.orbitTargetId !== null && (coOrbitingCount > 0 || totalShips > 1)
-                ? `
-              <div class="btn-row">
-                <button id="btn-merge-fleets" ${coOrbitingCount === 0 ? "disabled" : ""}>
-                  Merge Orbiting (${coOrbitingCount})
-                </button>
-                <button id="btn-split-fleet" ${totalShips <= 1 ? "disabled" : ""}>
-                  Split into Individual Ships (${totalShips})
-                </button>
-              </div>
-            `
-                : ""
-            }
-          </div>
-        `;
-            })()
-          : ""
-      }
 
       <h3>Orbiting Planets (${planets.length})</h3>
       <div class="planet-list">
@@ -1154,9 +1259,13 @@ function renderInspector(simNowMs: number): void {
           })
           .join("")}
       </div>
-
-      ${planetDetailHtml}
     </div>
+
+    <!-- SECTION 2: PLANET INFO -->
+    ${planetDetailHtml}
+
+    <!-- SECTION 3: SHIP INFO -->
+    ${shipSectionHtml}
   `;
 
   // Wire up planet list clicks
@@ -1168,6 +1277,41 @@ function renderInspector(simNowMs: number): void {
       renderUI();
     });
   });
+
+  // Wire up Ships in Orbit selection clicks
+  inspectorContent.querySelectorAll<HTMLElement>("[data-selectorbitfleet]").forEach((el) => {
+    el.addEventListener("click", () => {
+      selectedFleetId = el.dataset.selectorbitfleet!;
+      renderUI();
+    });
+  });
+
+  // Wire up Ship "In Orbit: <Planet>" jump button
+  document.getElementById("btn-jump-ship-orbit")?.addEventListener("click", () => {
+    if (activeFleet && activeFleet.orbitTargetId !== null) {
+      jumpToId(activeFleet.orbitTargetId);
+    }
+  });
+
+  // Wire up Ship Cargo buttons
+  if (activeFleet && activeFleet.orbitTargetId !== null) {
+    const orbStar = getStarById(activeFleet.orbitTargetId);
+    const { planetIndex: orbPIdx } = unpackId(activeFleet.orbitTargetId);
+    const orbPlanet = orbStar && orbPIdx >= 1 ? getPlanetsForStar(orbStar)[orbPIdx - 1] ?? null : null;
+    if (orbPlanet) {
+      document.getElementById("btn-ship-cargo-modal")?.addEventListener("click", () => {
+        openCargoModal(activeFleet.id, orbPlanet);
+      });
+      document.getElementById("btn-ship-load-pop")?.addEventListener("click", () => {
+        deltaStore.transferCargo(activeFleet.id, orbPlanet, "load_colonists", deltaStore.getSimNowMs());
+        renderUI();
+      });
+      document.getElementById("btn-ship-unload")?.addEventListener("click", () => {
+        deltaStore.transferCargo(activeFleet.id, orbPlanet, "unload", deltaStore.getSimNowMs());
+        renderUI();
+      });
+    }
+  }
 
   document.getElementById("btn-send-fleet-here")?.addEventListener("click", () => {
     if (selectedFleetId) {
@@ -1258,26 +1402,13 @@ function renderInspector(simNowMs: number): void {
       }
     });
 
-    inspectorContent.querySelectorAll<HTMLButtonElement>("[data-opencargomodal]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const fid = btn.dataset.opencargomodal!;
-        openCargoModal(fid, activePlanet);
-      });
+    document.getElementById("btn-open-production")?.addEventListener("click", () => {
+      openProductionModal(activePlanet);
     });
 
-    inspectorContent.querySelectorAll<HTMLButtonElement>("[data-cargofleet]").forEach((btn) => {
+    inspectorContent.querySelectorAll<HTMLButtonElement>("[data-removeq]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const fid = btn.dataset.cargofleet!;
-        const mode = btn.dataset.cargomode as "load_colonists" | "load_minerals" | "unload";
-        deltaStore.transferCargo(fid, activePlanet, mode, deltaStore.getSimNowMs());
-        renderUI();
-      });
-    });
-
-    inspectorContent.querySelectorAll<HTMLButtonElement>("[data-build]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const bType = btn.dataset.build as BuildableType;
-        deltaStore.enqueueBuildItem(activePlanet, bType, 1, deltaStore.getSimNowMs());
+        deltaStore.removeQueueItem(activePlanet, Number(btn.dataset.removeq));
         renderUI();
       });
     });
@@ -1297,20 +1428,347 @@ function renderUI(): void {
 
 const cargoModalBackdrop = document.getElementById("cargo-modal-backdrop")!;
 const cargoModalContent = document.getElementById("cargo-modal-content")!;
+const productionModalBackdrop = document.getElementById("production-modal-backdrop")!;
+const productionModalContent = document.getElementById("production-modal-content")!;
 
 function closeCargoModal(): void {
   cargoModalBackdrop.classList.remove("open");
+}
+
+function closeProductionModal(): void {
+  productionModalBackdrop.classList.remove("open");
 }
 
 cargoModalBackdrop.addEventListener("click", (e) => {
   if (e.target === cargoModalBackdrop) closeCargoModal();
 });
 
+productionModalBackdrop.addEventListener("click", (e) => {
+  if (e.target === productionModalBackdrop) closeProductionModal();
+});
+
 window.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && cargoModalBackdrop.classList.contains("open")) {
-    closeCargoModal();
+  if (e.key === "Escape") {
+    if (cargoModalBackdrop.classList.contains("open")) closeCargoModal();
+    if (productionModalBackdrop.classList.contains("open")) closeProductionModal();
   }
 });
+
+function openProductionModal(planet: PlanetData): void {
+  let addCount = 1;
+  let addAuto = false;
+  let addCapMode: "operable" | "fixed" = "operable";
+  let addCapValue = 60;
+
+  const renderModal = () => {
+    const simNow = deltaStore.getSimNowMs();
+    const state = deltaStore.evaluate(planet, simNow);
+    const pDelta = deltaStore.getDelta(planet.id);
+    if (!state.isModified || state.owner !== "Player" || !pDelta) {
+      closeProductionModal();
+      return;
+    }
+
+    const operableCap = Math.min(state.workerCapStructures, state.maxPlanetStructures);
+    const activeIdx = state.buildQueue.findIndex(
+      (q) => !deltaStore.isQueueItemAtCap(q, pDelta, state),
+    );
+
+    const queueRowsHtml =
+      state.buildQueue.length === 0
+        ? `<div style="color: var(--muted); font-size: 12px; padding: 10px; border: 1px dashed var(--border); border-radius: 6px; text-align: center;">Production queue is empty. Add items below.</div>`
+        : state.buildQueue
+            .map((item, idx) => {
+              const spec = BUILD_CATALOG[item.type];
+              const isActive = idx === activeIdx;
+              const isAtCap = deltaStore.isQueueItemAtCap(item, pDelta, state);
+              const pct = isActive
+                ? Math.min(100, Math.round((item.progressResources / spec.resources) * 100))
+                : 0;
+              const isStructWithCap = item.type === "mine" || item.type === "factory";
+              const isOperableCap = item.autoCap === undefined || item.autoCap === "operable";
+              const fixedCapVal = typeof item.autoCap === "number" ? item.autoCap : 60;
+
+              return `
+                <div class="queue-row ${isActive ? "active" : ""}">
+                  <div style="display: flex; flex-direction: column; gap: 3px; min-width: 180px;">
+                    <div style="display: flex; align-items: center; gap: 5px;">
+                      <span class="mono" style="color: var(--muted); font-size: 10px;">#${idx + 1}</span>
+                      ${item.autoRepeat ? `<span style="color: var(--accent-green);" title="Auto-Repeat">&#8635;</span>` : ""}
+                      <strong style="${item.autoRepeat ? "color: var(--accent-green);" : ""}">${item.count}x ${spec.label}</strong>
+                      ${
+                        item.autoRepeat && item.count > 1
+                          ? `<span class="mono" style="color: var(--muted); font-size: 10px;">(${item.batchBuilt ?? 0}/${item.count})</span>`
+                          : ""
+                      }
+                      ${isAtCap ? `<span class="badge fow" style="font-size: 9px;">AT CAP</span>` : ""}
+                    </div>
+                    <div class="mono" style="font-size: 10px; color: var(--muted);">
+                      ${isActive ? `${Math.round(item.progressResources)}/${spec.resources}R (${pct}%)` : `${spec.resources}R / unit`}
+                    </div>
+                  </div>
+
+                  <div style="display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: flex-end;">
+                    <button data-pmove="${idx}:-1" ${idx === 0 ? "disabled" : ""} style="padding: 2px 5px;" title="Move Up">&uarr;</button>
+                    <button data-pmove="${idx}:1" ${idx === state.buildQueue.length - 1 ? "disabled" : ""} style="padding: 2px 5px;" title="Move Down">&darr;</button>
+
+                    ${
+                      item.type !== "starbase"
+                        ? `
+                          <span style="display: inline-flex; align-items: center; gap: 2px; margin-left: 4px;">
+                            <button data-pqty="${idx}:-1" ${item.count <= 1 ? "disabled" : ""} style="padding: 2px 6px;">-</button>
+                            <span class="mono" style="min-width: 22px; text-align: center;">${item.count}</span>
+                            <button data-pqty="${idx}:1" ${item.count >= MAX_QUEUE_ITEM_COUNT ? "disabled" : ""} style="padding: 2px 6px;">+</button>
+                          </span>
+                          <button data-pauto="${idx}" class="${item.autoRepeat ? "success" : ""}" style="padding: 2px 6px;" title="Toggle Auto-Repeat (rotates to bottom after batch)">
+                            Auto${item.autoRepeat ? ": ON" : ""}
+                          </button>
+                        `
+                        : ""
+                    }
+
+                    ${
+                      item.autoRepeat && isStructWithCap
+                        ? `
+                          <button data-pcapmode="${idx}" style="padding: 2px 6px;" title="Switch between Operable Worker Cap and Fixed Cap">
+                            ${isOperableCap ? `Cap: Op(${operableCap})` : "Cap: Fixed"}
+                          </button>
+                          ${
+                            !isOperableCap
+                              ? `
+                                <span style="display: inline-flex; align-items: center; gap: 2px;">
+                                  <button data-pcapadj="${idx}:-5" style="padding: 2px 5px;">-5</button>
+                                  <input type="number" data-pcapinput="${idx}" min="1" max="${MAX_QUEUE_ITEM_COUNT}" value="${fixedCapVal}" style="width: 44px; padding: 2px 4px; font-size: 11px; background: #0a0f1c; border: 1px solid #2e436e; color: var(--text); border-radius: 4px;" />
+                                  <button data-pcapadj="${idx}:5" style="padding: 2px 5px;">+5</button>
+                                </span>
+                              `
+                              : ""
+                          }
+                        `
+                        : ""
+                    }
+
+                    <button data-prem="${idx}" class="danger" style="padding: 2px 6px;" title="Remove">&times;</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+    const catalogHtml = (Object.entries(BUILD_CATALOG) as [BuildableType, (typeof BUILD_CATALOG)[BuildableType]][])
+      .map(([bType, spec]) => {
+        const disabled =
+          (spec.category === "ship" && !state.hasStarbase) ||
+          (bType === "starbase" && state.hasStarbase);
+        const costs = [
+          `${spec.resources}R`,
+          spec.ironium > 0 ? `${spec.ironium}Fe` : "",
+          spec.boranium > 0 ? `${spec.boranium}Bo` : "",
+          spec.germanium > 0 ? `${spec.germanium}Ge` : "",
+        ]
+          .filter(Boolean)
+          .join(" &bull; ");
+        return `
+          <button class="catalog-item-btn" data-padd="${bType}" ${disabled ? "disabled" : ""}>
+            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+              <strong>${spec.label}</strong>
+              <span class="mono" style="font-size: 10px; color: var(--accent);">${costs}</span>
+            </div>
+            <span style="font-size: 10px; color: var(--muted);">
+              ${bType === "starbase" && state.hasStarbase ? "Already active on this colony." : spec.category === "ship" && !state.hasStarbase ? "Requires Starbase." : spec.description}
+            </span>
+          </button>
+        `;
+      })
+      .join("");
+
+    productionModalContent.innerHTML = `
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <h2 style="margin-bottom: 2px;">${state.displayName} &mdash; Production Queue</h2>
+          <div class="mono" style="font-size: 11px; color: var(--muted);">
+            Output: ${state.resourcesPerMin} Res/min &bull; Mines: ${state.mines} &bull; Factories: ${state.factories} &bull; Operable Cap: ${operableCap}
+          </div>
+        </div>
+        <button id="btn-prod-close-top">&times;</button>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 5px; max-height: 240px; overflow-y: auto;">
+        ${queueRowsHtml}
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 5px;">
+            <span class="hud-label">Qty:</span>
+            ${[1, 5, 10, 25, 60]
+              .map(
+                (q) =>
+                  `<button data-preset-qty="${q}" class="${addCount === q ? "primary" : ""}" style="padding: 2px 6px;">${q}</button>`,
+              )
+              .join("")}
+            <input type="number" id="input-add-qty" min="1" max="${MAX_QUEUE_ITEM_COUNT}" value="${addCount}" style="width: 48px; padding: 2px 5px; font-size: 11px; background: #0a0f1c; border: 1px solid #2e436e; color: var(--text); border-radius: 4px;" />
+          </div>
+
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <button id="btn-add-auto-toggle" class="${addAuto ? "success" : ""}" style="padding: 3px 8px;">
+              Auto-Repeat: ${addAuto ? "ON" : "OFF"}
+            </button>
+            ${
+              addAuto
+                ? `
+                  <button id="btn-add-cap-mode" style="padding: 3px 8px;">
+                    ${addCapMode === "operable" ? `Cap: Operable (${operableCap})` : "Cap: Fixed"}
+                  </button>
+                  ${
+                    addCapMode === "fixed"
+                      ? `<input type="number" id="input-add-cap" min="1" max="${MAX_QUEUE_ITEM_COUNT}" value="${addCapValue}" style="width: 48px; padding: 2px 5px; font-size: 11px; background: #0a0f1c; border: 1px solid #2e436e; color: var(--text); border-radius: 4px;" />`
+                      : ""
+                  }
+                `
+                : ""
+            }
+          </div>
+        </div>
+
+        <div style="font-size: 10px; color: var(--muted);">
+          Non-auto items insert before the first Auto item. Auto items append to the end and rotate to the bottom after each batch.
+        </div>
+
+        <div class="catalog-grid">
+          ${catalogHtml}
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-prod-clear" class="danger" ${state.buildQueue.length === 0 ? "disabled" : ""}>Clear Queue</button>
+        <button id="btn-prod-done" class="primary">Done</button>
+      </div>
+    `;
+
+    // Wire modal events
+    document.getElementById("btn-prod-close-top")?.addEventListener("click", closeProductionModal);
+    document.getElementById("btn-prod-done")?.addEventListener("click", closeProductionModal);
+    document.getElementById("btn-prod-clear")?.addEventListener("click", () => {
+      deltaStore.clearBuildQueue(planet);
+      renderModal();
+      renderUI();
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-pmove]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [idxStr, dStr] = btn.dataset.pmove!.split(":");
+        deltaStore.moveQueueItem(planet, Number(idxStr), Number(dStr));
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-pqty]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [idxStr, dStr] = btn.dataset.pqty!.split(":");
+        deltaStore.adjustQueueItemCount(planet, Number(idxStr), Number(dStr));
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-pauto]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        deltaStore.toggleQueueAutoRepeat(planet, Number(btn.dataset.pauto));
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-pcapmode]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const idx = Number(btn.dataset.pcapmode);
+        const item = deltaStore.getDelta(planet.id)?.buildQueue[idx];
+        if (!item) return;
+        const nextCap = item.autoCap === undefined || item.autoCap === "operable" ? 60 : "operable";
+        deltaStore.setQueueItemAutoCap(planet, idx, nextCap);
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-pcapadj]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [idxStr, dStr] = btn.dataset.pcapadj!.split(":");
+        const idx = Number(idxStr);
+        const item = deltaStore.getDelta(planet.id)?.buildQueue[idx];
+        if (!item) return;
+        const cur = typeof item.autoCap === "number" ? item.autoCap : 60;
+        deltaStore.setQueueItemAutoCap(planet, idx, cur + Number(dStr));
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLInputElement>("[data-pcapinput]").forEach((inp) => {
+      inp.addEventListener("change", () => {
+        const idx = Number(inp.dataset.pcapinput);
+        const val = Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Number(inp.value) || 1));
+        deltaStore.setQueueItemAutoCap(planet, idx, val);
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-prem]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        deltaStore.removeQueueItem(planet, Number(btn.dataset.prem));
+        renderModal();
+        renderUI();
+      });
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-preset-qty]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        addCount = Number(btn.dataset.presetQty);
+        renderModal();
+      });
+    });
+
+    const addQtyInput = document.getElementById("input-add-qty") as HTMLInputElement | null;
+    addQtyInput?.addEventListener("change", () => {
+      addCount = Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Math.round(Number(addQtyInput.value) || 1)));
+      renderModal();
+    });
+
+    document.getElementById("btn-add-auto-toggle")?.addEventListener("click", () => {
+      addAuto = !addAuto;
+      renderModal();
+    });
+
+    document.getElementById("btn-add-cap-mode")?.addEventListener("click", () => {
+      addCapMode = addCapMode === "operable" ? "fixed" : "operable";
+      renderModal();
+    });
+
+    const addCapInput = document.getElementById("input-add-cap") as HTMLInputElement | null;
+    addCapInput?.addEventListener("change", () => {
+      addCapValue = Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Math.round(Number(addCapInput.value) || 1)));
+      renderModal();
+    });
+
+    productionModalContent.querySelectorAll<HTMLButtonElement>("[data-padd]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const bType = btn.dataset.padd as BuildableType;
+        deltaStore.enqueueBuildItem(planet, bType, addCount, deltaStore.getSimNowMs(), {
+          autoRepeat: addAuto,
+          autoCap: addCapMode === "operable" ? "operable" : addCapValue,
+        });
+        renderModal();
+        renderUI();
+      });
+    });
+  };
+
+  renderModal();
+  productionModalBackdrop.classList.add("open");
+}
 
 function openCargoModal(fleetId: string, planet: PlanetData): void {
   const fleet = deltaStore.getFleetById(fleetId);
@@ -1572,6 +2030,24 @@ function updateLiveInspectorTelemetry(simNowMs: number): void {
     if (elBora) elBora.textContent = `${state.surfaceBoraniumKt} kT (+${state.boraniumMiningRatePerMin}/m)`;
     if (elGerm) elGerm.textContent = `${state.surfaceGermaniumKt} kT (+${state.germaniumMiningRatePerMin}/m)`;
     if (elPop) elPop.textContent = `${state.population.toLocaleString()} (+${state.populationGrowthPerMin}/m)`;
+
+    const pDelta = deltaStore.getDelta(activePlanet.id);
+    if (pDelta && state.buildQueue.length > 0) {
+      const activeItem = state.buildQueue.find((q) => !deltaStore.isQueueItemAtCap(q, pDelta, state));
+      if (activeItem) {
+        const spec = BUILD_CATALOG[activeItem.type];
+        const elapsedSinceCheckpointMin = Math.max(0, (simNowMs - pDelta.lastCheckpointSimMs) / 60_000);
+        const liveProgress = Math.min(
+          spec.resources,
+          activeItem.progressResources + state.resourcesPerMin * elapsedSinceCheckpointMin,
+        );
+        const pct = Math.min(100, (liveProgress / spec.resources) * 100);
+        const elText = document.getElementById("live-queue-progress-text");
+        const elBar = document.getElementById("live-queue-progress-bar");
+        if (elText) elText.textContent = `${Math.round(liveProgress)}/${spec.resources}R (${Math.round(pct)}%)`;
+        if (elBar) elBar.style.width = `${pct.toFixed(1)}%`;
+      }
+    }
   }
 }
 
@@ -1672,7 +2148,7 @@ function renderFrame(): void {
   // =========================================================================
   // 2. UNIFIED MULTI-TIER QUADTREE LOD (Stride = 1, 2, 4, 8 .. 1024 ly)
   // =========================================================================
-  if (metersPerPixel >= 2e11) {
+  if (metersPerPixel >= 5e12) {
     if (metersPerPixel > 5e14) {
       const [coreX, coreY] = worldToScreen(0n, 0n, width, height);
       const coreRadiusPx = (12_000 * Number(METERS_PER_LIGHT_YEAR)) / metersPerPixel;
@@ -1858,7 +2334,8 @@ function renderFrame(): void {
   // =========================================================================
   // 3. SOLAR SYSTEM & 1-METER TACTICAL VIEW (metersPerPixel < 5e12)
   // =========================================================================
-  if (metersPerPixel < 5e12 && selectedStar) {
+  if (metersPerPixel < 5e12) {
+    activeStride = 1;
     if (metersPerPixel <= 500) {
       let gridStepMeters = 1n;
       let gridLabel = "1m";
@@ -1899,138 +2376,179 @@ function renderFrame(): void {
       ctx.fillText(`TACTICAL GRID RESOLUTION: ${gridLabel} per cell`, 305, height - 48);
     }
 
-    const star = selectedStar;
-    const isScanned = isStarRevealed(star.id);
-    const [starSx, starSy] = worldToScreen(star.xMeters, star.yMeters, width, height);
-    const starRadiusPx = Math.max(5, star.radiusMeters / metersPerPixel);
+    // Render all stars (and their systems) in the 1-ly cells overlapping the viewport
+    // so zooming in on any unselected star from galaxy scale never makes it disappear.
+    const orbitMarginMeters = 60n * METERS_PER_AU;
+    const sysHalfSpanX = BigInt(Math.ceil(width * 0.55 * metersPerPixel)) + orbitMarginMeters;
+    const sysHalfSpanY = BigInt(Math.ceil(height * 0.55 * metersPerPixel)) + orbitMarginMeters;
+    const sysMinCx = Number((camX - sysHalfSpanX) / CELL_SIZE_METERS) - 1;
+    const sysMaxCx = Number((camX + sysHalfSpanX) / CELL_SIZE_METERS) + 1;
+    const sysMinCy = Number((camY - sysHalfSpanY) / CELL_SIZE_METERS) - 1;
+    const sysMaxCy = Number((camY + sysHalfSpanY) / CELL_SIZE_METERS) + 1;
+    const maxSystemRadiusPx = (60 * Number(METERS_PER_AU)) / metersPerPixel;
 
-    if (
-      starSx + starRadiusPx > -200 &&
-      starSx - starRadiusPx < width + 200 &&
-      starSy + starRadiusPx > -200 &&
-      starSy - starRadiusPx < height + 200
-    ) {
-      ctx.fillStyle = star.color;
-      ctx.beginPath();
-      ctx.arc(starSx, starSy, starRadiusPx, 0, Math.PI * 2);
-      ctx.fill();
+    for (let cx = sysMinCx; cx <= sysMaxCx; cx++) {
+      for (let cy = sysMinCy; cy <= sysMaxCy; cy++) {
+        const cellStars = getCellStars(cx, cy);
+        for (let sIdx = 0; sIdx < cellStars.length; sIdx++) {
+          const star = cellStars[sIdx];
+          const [starSx, starSy] = worldToScreen(star.xMeters, star.yMeters, width, height);
 
-      ctx.fillStyle = "#fff";
-      ctx.font = "12px Inter, sans-serif";
-      ctx.fillText(`${star.name} (${star.spectralClass})`, starSx + starRadiusPx + 6, starSy + 4);
+          // Skip stars whose entire planetary system is outside the viewport
+          if (
+            starSx + maxSystemRadiusPx < -200 ||
+            starSx - maxSystemRadiusPx > width + 200 ||
+            starSy + maxSystemRadiusPx < -200 ||
+            starSy - maxSystemRadiusPx > height + 200
+          ) {
+            continue;
+          }
 
-      frameHitTargets.push({
-        screenX: starSx,
-        screenY: starSy,
-        hitRadius: Math.max(12, starRadiusPx),
-        star,
-        planetIndex: 0,
-      });
-    }
+          const isScanned = isStarRevealed(star.id);
+          const isSelected = selectedStar?.id === star.id;
+          const starRadiusPx = Math.max(5, star.radiusMeters / metersPerPixel);
 
-    const planets = getPlanetsForStar(star);
-    for (const planet of planets) {
-      const orbitRadiusPx = Number(planet.orbitRadiusMeters) / metersPerPixel;
-      const isSelectedPlanet = selectedPlanetIndex === planet.planetIndex;
-      const evalState = deltaStore.evaluate(planet, simNowMs);
+          if (
+            starSx + starRadiusPx > -200 &&
+            starSx - starRadiusPx < width + 200 &&
+            starSy + starRadiusPx > -200 &&
+            starSy - starRadiusPx < height + 200
+          ) {
+            drawnStarsCount++;
+            if (isSelected) {
+              ctx.strokeStyle = "#4da6ff";
+              ctx.lineWidth = 1.5;
+              ctx.beginPath();
+              ctx.arc(starSx, starSy, starRadiusPx + 6, 0, Math.PI * 2);
+              ctx.stroke();
+            }
 
-      if (orbitRadiusPx > 3 && orbitRadiusPx < 50_000) {
-        ctx.strokeStyle = isSelectedPlanet
-          ? "rgba(77, 166, 255, 0.45)"
-          : "rgba(140, 170, 220, 0.16)";
-        ctx.lineWidth = isSelectedPlanet ? 1.5 : 1;
-        ctx.beginPath();
-        ctx.arc(starSx, starSy, orbitRadiusPx, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+            ctx.fillStyle = star.color;
+            ctx.beginPath();
+            ctx.arc(starSx, starSy, starRadiusPx, 0, Math.PI * 2);
+            ctx.fill();
 
-      const pos = getPlanetPositionMeters(star, planet, simNowMs);
-      const [px, py] = worldToScreen(pos.xMeters, pos.yMeters, width, height);
+            ctx.fillStyle = "#fff";
+            ctx.font = "12px Inter, sans-serif";
+            ctx.fillText(`${star.name} (${star.spectralClass})`, starSx + starRadiusPx + 6, starSy + 4);
 
-      if (px < -100 || px > width + 100 || py < -100 || py > height + 100) continue;
+            frameHitTargets.push({
+              screenX: starSx,
+              screenY: starSy,
+              hitRadius: Math.max(12, starRadiusPx),
+              star,
+              planetIndex: 0,
+            });
+          }
 
-      const physicalRadiusPx = planet.radiusMeters / metersPerPixel;
-      const drawRadiusPx = Math.max(4, Math.min(2000, physicalRadiusPx));
+          const planets = getPlanetsForStar(star);
+          for (const planet of planets) {
+            const orbitRadiusPx = Number(planet.orbitRadiusMeters) / metersPerPixel;
+            if (orbitRadiusPx <= 3) continue;
 
-      const showHab = isScanned || evalState.isModified;
-      ctx.fillStyle = !showHab
-        ? "#6c7a96"
-        : evalState.effectiveHabitabilityPct >= 50
-          ? "#3ddc97"
-          : evalState.effectiveHabitabilityPct > 0
-            ? "#ffbe55"
-            : "#d96b6b";
-      ctx.beginPath();
-      ctx.arc(px, py, drawRadiusPx, 0, Math.PI * 2);
-      ctx.fill();
+            const isSelectedPlanet = isSelected && selectedPlanetIndex === planet.planetIndex;
+            const evalState = deltaStore.evaluate(planet, simNowMs);
 
-      if (evalState.isModified || isSelectedPlanet) {
-        ctx.strokeStyle = evalState.isModified
-          ? evalState.owner === "Player"
-            ? "#3ddc97"
-            : "#ff5d5d"
-          : "#4da6ff";
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(px, py, drawRadiusPx + 5, 0, Math.PI * 2);
-        ctx.stroke();
-      }
+            if (orbitRadiusPx < 50_000) {
+              ctx.strokeStyle = isSelectedPlanet
+                ? "rgba(77, 166, 255, 0.45)"
+                : "rgba(140, 170, 220, 0.16)";
+              ctx.lineWidth = isSelectedPlanet ? 1.5 : 1;
+              ctx.beginPath();
+              ctx.arc(starSx, starSy, orbitRadiusPx, 0, Math.PI * 2);
+              ctx.stroke();
+            }
 
-      if (metersPerPixel <= 50) {
-        const stationOffsetMeters = 25n;
-        const [stX, stY] = worldToScreen(
-          pos.xMeters + stationOffsetMeters,
-          pos.yMeters - stationOffsetMeters,
-          width,
-          height,
-        );
-        const stationSizePx = Math.max(4, 6 / metersPerPixel);
-        ctx.strokeStyle = "#4da6ff";
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(
-          stX - stationSizePx * 0.5,
-          stY - stationSizePx * 0.5,
-          stationSizePx,
-          stationSizePx,
-        );
-        ctx.fillStyle = "#92b5ff";
-        ctx.font = "11px monospace";
-        ctx.fillText("Orbital Beacon (+25m, -25m)", stX + stationSizePx * 0.5 + 6, stY + 4);
-      }
+            const pos = getPlanetPositionMeters(star, planet, simNowMs);
+            const [px, py] = worldToScreen(pos.xMeters, pos.yMeters, width, height);
 
-      let overlayPlanetSuffix = "";
-      if (showHab && activeOverlay !== "normal") {
-        if (activeOverlay === "habitability") {
-          overlayPlanetSuffix = ` (${evalState.effectiveHabitabilityPct}% Hab)`;
-        } else if (activeOverlay === "conc_iron") {
-          overlayPlanetSuffix = ` (Fe: ${planet.ironiumConc}%)`;
-        } else if (activeOverlay === "conc_bora") {
-          overlayPlanetSuffix = ` (Bo: ${planet.boraniumConc}%)`;
-        } else if (activeOverlay === "conc_germ") {
-          overlayPlanetSuffix = ` (Ge: ${planet.germaniumConc}%)`;
-        } else if (activeOverlay === "abundance") {
-          const totKt = Math.round(
-            evalState.surfaceIroniumKt + evalState.surfaceBoraniumKt + evalState.surfaceGermaniumKt,
-          );
-          overlayPlanetSuffix = ` (${totKt.toLocaleString()} kT)`;
+            if (px < -100 || px > width + 100 || py < -100 || py > height + 100) continue;
+
+            const physicalRadiusPx = planet.radiusMeters / metersPerPixel;
+            const drawRadiusPx = Math.max(4, Math.min(2000, physicalRadiusPx));
+
+            const showHab = isScanned || evalState.isModified;
+            ctx.fillStyle = !showHab
+              ? "#6c7a96"
+              : evalState.effectiveHabitabilityPct >= 50
+                ? "#3ddc97"
+                : evalState.effectiveHabitabilityPct > 0
+                  ? "#ffbe55"
+                  : "#d96b6b";
+            ctx.beginPath();
+            ctx.arc(px, py, drawRadiusPx, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (evalState.isModified || isSelectedPlanet) {
+              ctx.strokeStyle = evalState.isModified
+                ? evalState.owner === "Player"
+                  ? "#3ddc97"
+                  : "#ff5d5d"
+                : "#4da6ff";
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.arc(px, py, drawRadiusPx + 5, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+
+            if (metersPerPixel <= 50) {
+              const stationOffsetMeters = 25n;
+              const [stX, stY] = worldToScreen(
+                pos.xMeters + stationOffsetMeters,
+                pos.yMeters - stationOffsetMeters,
+                width,
+                height,
+              );
+              const stationSizePx = Math.max(4, 6 / metersPerPixel);
+              ctx.strokeStyle = "#4da6ff";
+              ctx.lineWidth = 1.5;
+              ctx.strokeRect(
+                stX - stationSizePx * 0.5,
+                stY - stationSizePx * 0.5,
+                stationSizePx,
+                stationSizePx,
+              );
+              ctx.fillStyle = "#92b5ff";
+              ctx.font = "11px monospace";
+              ctx.fillText("Orbital Beacon (+25m, -25m)", stX + stationSizePx * 0.5 + 6, stY + 4);
+            }
+
+            let overlayPlanetSuffix = "";
+            if (showHab && activeOverlay !== "normal") {
+              if (activeOverlay === "habitability") {
+                overlayPlanetSuffix = ` (${evalState.effectiveHabitabilityPct}% Hab)`;
+              } else if (activeOverlay === "conc_iron") {
+                overlayPlanetSuffix = ` (Fe: ${planet.ironiumConc}%)`;
+              } else if (activeOverlay === "conc_bora") {
+                overlayPlanetSuffix = ` (Bo: ${planet.boraniumConc}%)`;
+              } else if (activeOverlay === "conc_germ") {
+                overlayPlanetSuffix = ` (Ge: ${planet.germaniumConc}%)`;
+              } else if (activeOverlay === "abundance") {
+                const totKt = Math.round(
+                  evalState.surfaceIroniumKt + evalState.surfaceBoraniumKt + evalState.surfaceGermaniumKt,
+                );
+                overlayPlanetSuffix = ` (${totKt.toLocaleString()} kT)`;
+              }
+            }
+
+            ctx.fillStyle = isSelectedPlanet ? "#ffffff" : "rgba(226, 232, 240, 0.85)";
+            ctx.font = "11px Inter, sans-serif";
+            ctx.fillText(
+              `${evalState.displayName}${evalState.isModified ? ` [${evalState.owner?.toUpperCase()}]` : ""}${overlayPlanetSuffix}`,
+              px + Math.min(30, drawRadiusPx) + 7,
+              py + 4,
+            );
+
+            frameHitTargets.push({
+              screenX: px,
+              screenY: py,
+              hitRadius: Math.max(12, Math.min(40, drawRadiusPx)),
+              star,
+              planetIndex: planet.planetIndex,
+            });
+          }
         }
       }
-
-      ctx.fillStyle = isSelectedPlanet ? "#ffffff" : "rgba(226, 232, 240, 0.85)";
-      ctx.font = "11px Inter, sans-serif";
-      ctx.fillText(
-        `${evalState.displayName}${evalState.isModified ? ` [${evalState.owner?.toUpperCase()}]` : ""}${overlayPlanetSuffix}`,
-        px + Math.min(30, drawRadiusPx) + 7,
-        py + 4,
-      );
-
-      frameHitTargets.push({
-        screenX: px,
-        screenY: py,
-        hitRadius: Math.max(12, Math.min(40, drawRadiusPx)),
-        star,
-        planetIndex: planet.planetIndex,
-      });
     }
   }
 
