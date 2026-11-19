@@ -15,13 +15,13 @@ import {
 const STORAGE_KEY = "heliarchy_sandbox_state_v5";
 
 /**
- * 1 Stars! Game Year (Turn) = 30.0 Simulation Minutes at 1x Persistent MMO speed.
+ * 1 Stars! Game Year (Turn) = 15.0 Simulation Minutes at 1x Persistent MMO speed.
  * Synchronizes economic output (resources, mining, pop growth) with interstellar ship travel times!
  */
-export const SIM_MINUTES_PER_GAME_YEAR = 30.0;
+export const SIM_MINUTES_PER_GAME_YEAR = 15.0;
 
 /** Speed of radio/subspace telemetry returning from probes to your nearest colony (in ly / sim minute) */
-export const SIGNAL_SPEED_LY_PER_MIN = 0.85;
+export const SIGNAL_SPEED_LY_PER_MIN = 1.7;
 
 export type OwnerFaction = "Player" | "Xenon";
 
@@ -80,48 +80,56 @@ export const BUILD_CATALOG: Record<BuildableType, BuildCost> = {
     type: "scout",
     label: "Scout Probe",
     category: "ship",
-    resources: 25,
-    ironium: 8,
-    boranium: 2,
-    germanium: 4,
-    description: "Low-mass probe. High delta-v (1.2 ly/m orbit, 2.4 ly/m ballistic flyby).",
+    resources: 18,
+    ironium: 5,
+    boranium: 1,
+    germanium: 3,
+    description: "Low-mass probe. High delta-v for multi-star gravity-assist tours.",
   },
   colony: {
     type: "colony",
     label: "Colony Ship",
     category: "ship",
-    resources: 65,
-    ironium: 20,
-    boranium: 10,
-    germanium: 15,
-    description: "Heavy ark (0.45 ly/m interstellar cruise). Carries 25,000 colonists.",
+    resources: 44,
+    ironium: 14,
+    boranium: 8,
+    germanium: 10,
+    description: "Heavy ark carrying 25,000 colonists to establish a new colony.",
   },
   freighter: {
     type: "freighter",
     label: "Medium Freighter",
     category: "ship",
-    resources: 45,
-    ironium: 16,
-    boranium: 4,
-    germanium: 8,
-    description: "Hauls up to 300 kT of minerals or colonists between worlds.",
+    resources: 32,
+    ironium: 12,
+    boranium: 3,
+    germanium: 6,
+    description: "Hauls up to 300 kT of minerals or 50,000 colonists between worlds.",
   },
   destroyer: {
     type: "destroyer",
     label: "Destroyer",
     category: "ship",
-    resources: 90,
-    ironium: 35,
-    boranium: 25,
-    germanium: 20,
-    description: "Armed warship (0.75 ly/m interstellar cruise). Captures enemy colonies.",
+    resources: 70,
+    ironium: 26,
+    boranium: 18,
+    germanium: 14,
+    description: "Armed warship. Engages hostile fleets & captures enemy colonies.",
   },
 };
+
+export const MAX_QUEUE_ITEM_COUNT = 60;
 
 export interface BuildQueueItem {
   type: BuildableType;
   count: number;
+  /** Number of units completed in the current auto-repeat batch before rotating to bottom */
+  batchBuilt?: number;
   progressResources: number;
+  /** If true, repeats in batches of `count` and rotates to the bottom of the queue */
+  autoRepeat?: boolean;
+  /** For autoRepeat mines/factories: fixed cap (1..60) or "operable" worker cap */
+  autoCap?: number | "operable";
 }
 
 export interface PlanetDelta {
@@ -255,6 +263,8 @@ export interface EvaluatedPlanetState {
 
 export interface CombatLogEntry {
   simTimeMs: number;
+  realTimeMs?: number;
+  gameYear?: number;
   message: string;
   type: "info" | "combat" | "colony";
 }
@@ -341,13 +351,95 @@ class SandboxStore {
     this.saveToStorage();
   }
 
+  getSimEpochBaseMs(): number {
+    return this.simEpochBaseMs;
+  }
+
   getLogs(): CombatLogEntry[] {
     return this.logs;
   }
 
   addLog(message: string, type: "info" | "combat" | "colony" = "info", simTimeMs = this.getSimNowMs()): void {
-    this.logs.unshift({ simTimeMs, message, type });
-    if (this.logs.length > 25) this.logs.length = 25;
+    const gameYear = Number(this.getGameYear(simTimeMs).toFixed(2));
+    this.logs.unshift({
+      simTimeMs,
+      realTimeMs: Date.now(),
+      gameYear,
+      message,
+      type,
+    });
+    if (this.logs.length > 100) this.logs.length = 100;
+  }
+
+  exportDebugTelemetry(): string {
+    const simNowMs = this.getSimNowMs();
+    const gameYear = Number(this.getGameYear(simNowMs).toFixed(2));
+    const simElapsedMin = Number(((simNowMs - this.simEpochBaseMs) / 60_000).toFixed(2));
+
+    const colonies = this.getAllDeltas()
+      .filter(({ delta }) => delta.owner === "Player")
+      .map(({ id, delta }) => {
+        const star = getStarById(id);
+        const { planetIndex } = unpackId(id);
+        const planet = star ? getPlanetsForStar(star)[planetIndex - 1] : null;
+        const evalState = planet ? this.evaluate(planet, simNowMs) : null;
+        return {
+          name: delta.customName || planet?.name || delta.planetIdHex,
+          population: evalState?.population ?? delta.populationAtCheckpoint,
+          mines: `${evalState?.operableMines ?? delta.mines}/${delta.mines}`,
+          factories: `${evalState?.operableFactories ?? delta.factories}/${delta.factories}`,
+          resPerMin: evalState?.resourcesPerMin ?? 0,
+          resPerYear: evalState ? Number((evalState.resourcesPerMin * SIM_MINUTES_PER_GAME_YEAR).toFixed(1)) : 0,
+          mineralsKt: {
+            ironium: evalState?.surfaceIroniumKt ?? delta.surfaceIroniumKtAtCheckpoint,
+            boranium: evalState?.surfaceBoraniumKt ?? delta.surfaceBoraniumKtAtCheckpoint,
+            germanium: evalState?.surfaceGermaniumKt ?? delta.surfaceGermaniumKtAtCheckpoint,
+          },
+          buildQueue: delta.buildQueue,
+        };
+      });
+
+    const fleets = this.getAllFleets()
+      .filter((f) => f.owner === "Player")
+      .map((f) => ({
+        name: f.name,
+        ships: f.ships,
+        fuelPct: Math.round(f.fuelPct),
+        burnLevel: f.burnLevel ?? 5,
+        burnMode: f.burnMode,
+        powerPct: this.getFleetPowerState(f, simNowMs).powerPct,
+        inOrbit: f.orbitTargetId !== null,
+      }));
+
+    const events = this.logs.map((l) => {
+      const yr = l.gameYear ?? Number(this.getGameYear(l.simTimeMs).toFixed(2));
+      const simMin = Number(((l.simTimeMs - this.simEpochBaseMs) / 60_000).toFixed(2));
+      return {
+        gameYear: yr,
+        simElapsedMin: simMin,
+        realTimeIso: l.realTimeMs ? new Date(l.realTimeMs).toISOString() : null,
+        type: l.type,
+        message: l.message,
+      };
+    });
+
+    return JSON.stringify(
+      {
+        exportedAt: new Date().toISOString(),
+        pacing: {
+          simMinutesPerGameYear: SIM_MINUTES_PER_GAME_YEAR,
+          currentSpeedMultiplier: this.speedMultiplier,
+          currentGameYear: gameYear,
+          simElapsedMinutes: simElapsedMin,
+          signalSpeedLyPerMin: SIGNAL_SPEED_LY_PER_MIN,
+        },
+        colonies,
+        fleets,
+        events,
+      },
+      null,
+      2,
+    );
   }
 
   private keyFor(id: bigint): string {
@@ -456,14 +548,11 @@ class SandboxStore {
       mines: 10,
       factories: 10,
       hasStarbase: true,
-      buildQueue: [
-        { type: "factory", count: 2, progressResources: 0 },
-        { type: "mine", count: 2, progressResources: 0 },
-      ],
-      populationAtCheckpoint: 35_000,
-      surfaceIroniumKtAtCheckpoint: 185,
-      surfaceBoraniumKtAtCheckpoint: 145,
-      surfaceGermaniumKtAtCheckpoint: 165,
+      buildQueue: [],
+      populationAtCheckpoint: 65_000,
+      surfaceIroniumKtAtCheckpoint: 220,
+      surfaceBoraniumKtAtCheckpoint: 170,
+      surfaceGermaniumKtAtCheckpoint: 195,
       colonizedAtSimMs: simNow,
       lastCheckpointSimMs: simNow,
     });
@@ -687,10 +776,10 @@ class SandboxStore {
     burnMode: BurnMode = fleet.burnMode,
     burnLevel: number = fleet.burnLevel ?? 5,
   ): number {
-    let baseSpeed = 0.12; // Scout probe at Burn 5 (~3.6 ly per 30-min Game Year in Orbit mode)
-    if (fleet.ships.colony > 0) baseSpeed = 0.055;
-    else if (fleet.ships.freighter > 0) baseSpeed = 0.070;
-    else if (fleet.ships.destroyer > 0) baseSpeed = 0.090;
+    let baseSpeed = 0.17; // Scout probe at Burn 5 (~2.55 ly per 15-min Game Year in Orbit mode)
+    if (fleet.ships.colony > 0) baseSpeed = 0.11;
+    else if (fleet.ships.freighter > 0) baseSpeed = 0.14;
+    else if (fleet.ships.destroyer > 0) baseSpeed = 0.16;
 
     const cargoMassKt =
       fleet.cargo.ironium +
@@ -785,10 +874,10 @@ class SandboxStore {
 
     // Deep-space or Ballistic Flyby: inverse-square transmitter load + deep-space sensor drain,
     // partially offset by perihelion solar array harvesting during gravity-assist slingshots!
-    const slingshotSolarBoost = (fleet.slingshotsCompleted ?? 0) * 18;
-    const deepExcessLy = Math.max(0, distFromEmpireLy - 3.5);
-    const inverseSquareTxDrain = deepExcessLy * deepExcessLy * 2.1;
-    const baseDeepDrain = distTraveledLy * 5.2;
+    const slingshotSolarBoost = (fleet.slingshotsCompleted ?? 0) * 10;
+    const deepExcessLy = Math.max(0, distFromEmpireLy - 2.8);
+    const inverseSquareTxDrain = deepExcessLy * deepExcessLy * 3.8;
+    const baseDeepDrain = distTraveledLy * 8.0;
     const powerPct = Math.max(
       0,
       Math.min(100, Math.round(100 + slingshotSolarBoost - (baseDeepDrain + inverseSquareTxDrain))),
@@ -1272,7 +1361,7 @@ class SandboxStore {
       if (fleet.owner === "Player" && pwr.isPowered) {
         const cx = Number(pos.xMeters / CELL_SIZE_METERS);
         const cy = Number(pos.yMeters / CELL_SIZE_METERS);
-        const maxSurveyDistMeters = 0.12 * Number(METERS_PER_LIGHT_YEAR);
+        const maxSurveyDistMeters = 0.06 * Number(METERS_PER_LIGHT_YEAR);
 
         for (let dx = -1; dx <= 1; dx++) {
           for (let dy = -1; dy <= 1; dy++) {
@@ -1425,6 +1514,21 @@ class SandboxStore {
     }
   }
 
+  isQueueItemAtCap(item: BuildQueueItem, delta: PlanetDelta, current: EvaluatedPlanetState): boolean {
+    if (item.type === "starbase") {
+      return delta.hasStarbase;
+    }
+    if (!item.autoRepeat) return false;
+    const operableCap = Math.min(current.workerCapStructures, current.maxPlanetStructures);
+    const cap =
+      item.autoCap === undefined || item.autoCap === "operable"
+        ? operableCap
+        : Math.min(item.autoCap, current.maxPlanetStructures);
+    if (item.type === "mine") return delta.mines >= cap;
+    if (item.type === "factory") return delta.factories >= cap;
+    return false;
+  }
+
   private advancePlanetProduction(
     star: StarData,
     base: PlanetData,
@@ -1437,9 +1541,12 @@ class SandboxStore {
     const current = this.evaluate(base, simNowMs);
     const totalResProduced = current.resourcesPerMin * elapsedMin;
 
-    const topItem = delta.buildQueue[0];
-    if (!topItem) return false;
+    const eligibleIdx = delta.buildQueue.findIndex(
+      (item) => !this.isQueueItemAtCap(item, delta, current),
+    );
+    if (eligibleIdx === -1) return false;
 
+    const topItem = delta.buildQueue[eligibleIdx];
     const spec = BUILD_CATALOG[topItem.type];
     const neededRes = spec.resources - topItem.progressResources;
 
@@ -1462,10 +1569,23 @@ class SandboxStore {
           this.spawnShipInOrbit(star, base, delta, topItem.type, simNowMs);
         }
 
-        topItem.count -= 1;
         topItem.progressResources = 0;
-        if (topItem.count <= 0) {
-          delta.buildQueue.shift();
+        if (!topItem.autoRepeat) {
+          topItem.count -= 1;
+          topItem.batchBuilt = (topItem.batchBuilt ?? 0) + 1;
+          if (topItem.count <= 0) {
+            delta.buildQueue.splice(eligibleIdx, 1);
+          }
+        } else {
+          topItem.batchBuilt = (topItem.batchBuilt ?? 0) + 1;
+          if (
+            topItem.batchBuilt >= topItem.count ||
+            this.isQueueItemAtCap(topItem, delta, current)
+          ) {
+            topItem.batchBuilt = 0;
+            delta.buildQueue.splice(eligibleIdx, 1);
+            delta.buildQueue.push(topItem);
+          }
         }
 
         this.addLog(
@@ -1644,12 +1764,22 @@ class SandboxStore {
     };
   }
 
-  enqueueBuildItem(base: PlanetData, type: BuildableType, count: number, simNowMs: number): void {
+  enqueueBuildItem(
+    base: PlanetData,
+    type: BuildableType,
+    count: number,
+    simNowMs: number,
+    options?: { autoRepeat?: boolean; autoCap?: number | "operable" },
+  ): void {
     const delta = this.getDelta(base.id);
     if (!delta || delta.owner !== "Player") return;
 
     const spec = BUILD_CATALOG[type];
     if (spec.category === "ship" && !delta.hasStarbase) return;
+    if (type === "starbase" && delta.hasStarbase) return;
+
+    const clampedCount = Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Math.round(count)));
+    const isAuto = Boolean(options?.autoRepeat && type !== "starbase");
 
     const current = this.evaluate(base, simNowMs);
     delta.populationAtCheckpoint = current.population;
@@ -1658,11 +1788,28 @@ class SandboxStore {
     delta.surfaceGermaniumKtAtCheckpoint = current.surfaceGermaniumKt;
     delta.lastCheckpointSimMs = simNowMs;
 
-    const existing = delta.buildQueue.find((i) => i.type === type);
-    if (existing) {
-      existing.count += count;
+    if (isAuto) {
+      const cap =
+        type === "mine" || type === "factory"
+          ? options?.autoCap ?? "operable"
+          : undefined;
+      delta.buildQueue.push({
+        type,
+        count: clampedCount,
+        batchBuilt: 0,
+        progressResources: 0,
+        autoRepeat: true,
+        autoCap: typeof cap === "number" ? Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Math.round(cap))) : cap,
+      });
     } else {
-      delta.buildQueue.push({ type, count, progressResources: 0 });
+      // Insert after the last non-auto item and before the first auto item
+      const firstAutoIdx = delta.buildQueue.findIndex((i) => i.autoRepeat);
+      const insertIdx = firstAutoIdx === -1 ? delta.buildQueue.length : firstAutoIdx;
+      delta.buildQueue.splice(insertIdx, 0, {
+        type,
+        count: type === "starbase" ? 1 : clampedCount,
+        progressResources: 0,
+      });
     }
     this.saveToStorage();
   }
@@ -1671,6 +1818,61 @@ class SandboxStore {
     const delta = this.getDelta(base.id);
     if (!delta || delta.owner !== "Player") return;
     delta.buildQueue = [];
+    this.saveToStorage();
+  }
+
+  moveQueueItem(base: PlanetData, index: number, deltaIndex: number): void {
+    const delta = this.getDelta(base.id);
+    if (!delta || delta.owner !== "Player") return;
+    const target = index + deltaIndex;
+    if (index < 0 || index >= delta.buildQueue.length) return;
+    if (target < 0 || target >= delta.buildQueue.length) return;
+    const [item] = delta.buildQueue.splice(index, 1);
+    delta.buildQueue.splice(target, 0, item);
+    this.saveToStorage();
+  }
+
+  adjustQueueItemCount(base: PlanetData, index: number, deltaCount: number): void {
+    const delta = this.getDelta(base.id);
+    if (!delta || delta.owner !== "Player") return;
+    const item = delta.buildQueue[index];
+    if (!item || item.type === "starbase") return;
+    item.count = Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, item.count + deltaCount));
+    if (item.batchBuilt && item.batchBuilt >= item.count) {
+      item.batchBuilt = item.count - 1;
+    }
+    this.saveToStorage();
+  }
+
+  toggleQueueAutoRepeat(base: PlanetData, index: number): void {
+    const delta = this.getDelta(base.id);
+    if (!delta || delta.owner !== "Player") return;
+    const item = delta.buildQueue[index];
+    if (!item || item.type === "starbase") return;
+    item.autoRepeat = !item.autoRepeat;
+    item.batchBuilt = 0;
+    if (item.autoRepeat && (item.type === "mine" || item.type === "factory") && item.autoCap === undefined) {
+      item.autoCap = "operable";
+    }
+    this.saveToStorage();
+  }
+
+  setQueueItemAutoCap(base: PlanetData, index: number, cap: number | "operable" | undefined): void {
+    const delta = this.getDelta(base.id);
+    if (!delta || delta.owner !== "Player") return;
+    const item = delta.buildQueue[index];
+    if (!item || (item.type !== "mine" && item.type !== "factory")) return;
+    item.autoCap =
+      typeof cap === "number"
+        ? Math.max(1, Math.min(MAX_QUEUE_ITEM_COUNT, Math.round(cap)))
+        : cap;
+    this.saveToStorage();
+  }
+
+  removeQueueItem(base: PlanetData, index: number): void {
+    const delta = this.getDelta(base.id);
+    if (!delta || delta.owner !== "Player") return;
+    delta.buildQueue.splice(index, 1);
     this.saveToStorage();
   }
 
