@@ -500,14 +500,16 @@ export function getPlanetPositionMeters(
 
 const superBlockCache = new Map<string, StarData[]>();
 const MAX_SUPERBLOCK_CACHE = 16000;
+const MAX_LOD_STRIDE = 1024;
 
 /**
- * Quadtree / Super-Block Importance Sampler for intermediate and wide zoom levels.
+ * Hierarchical Quadtree / Super-Block Importance Sampler for intermediate and wide zoom levels.
  *
- * For a block of size `stride x stride` light-years (where stride = 2, 4, 8, 16, 32, 64, 128, 256, 512):
- * Evaluates in O(1) time by deterministically sampling 1..3 actual 1-ly cells inside the block
- * and returning their brightest star(s). Because it pulls from `getCellStars(cx, cy)`, every star
- * rendered at any zoom level is a real, clickable star with a valid 64-bit ID and planets.
+ * For a block of size `stride x stride` light-years (where stride = 2, 4, 8, ..., 1024):
+ * Inherits any representative stars from its parent `(2*stride)` block that fall inside this
+ * block's bounds, then samples additional brightest-in-cell landmarks up to `sampleCount`.
+ * Because every coarser LoD's stars are strictly preserved in finer LoDs (and in `stride = 1`),
+ * zooming in smoothly adds new stars without existing stars popping out or disappearing.
  */
 export function getSuperBlockStars(blockX: number, blockY: number, stride: number): StarData[] {
   if (stride <= 1) {
@@ -518,37 +520,55 @@ export function getSuperBlockStars(blockX: number, blockY: number, stride: numbe
   const cached = superBlockCache.get(key);
   if (cached) return cached;
 
-  const centerCx = blockX * stride + (stride >> 1);
-  const centerCy = blockY * stride + (stride >> 1);
-  const lambda = getStellarDensityLambda(centerCx, centerCy);
-  if (lambda <= 0.002) return [];
-
-  const seed = hashCoords(GALAXY_SEED ^ 0x55aa55aan, blockX, blockY, stride);
-  const rng = new DetRng(seed);
-
-  // Expected representative stars per super-block (1 to 3 depending on galactic density)
-  const effectiveLambda = lambda * Math.min(8, Math.sqrt(stride));
-  const sampleCount = Math.min(3, samplePoisson(Math.min(2.6, effectiveLambda * 0.9 + 0.15), rng));
   const out: StarData[] = [];
   const usedCells = new Set<string>();
 
-  for (let attempt = 0; attempt < sampleCount * 6 && out.length < sampleCount; attempt++) {
-    const scx = blockX * stride + rng.nextRangeInt(0, stride - 1);
-    const scy = blockY * stride + rng.nextRangeInt(0, stride - 1);
-    const cKey = `${scx},${scy}`;
-    if (usedCells.has(cKey)) continue;
-    usedCells.add(cKey);
-
-    const cellStars = getCellStars(scx, scy);
-    if (cellStars.length > 0) {
-      // Pick the highest-luminosity star in that cell as the landmark representative
-      let brightest = cellStars[0];
-      for (let j = 1; j < cellStars.length; j++) {
-        if (cellStars[j].luminositySolar > brightest.luminositySolar) {
-          brightest = cellStars[j];
-        }
+  // Inherit stars from parent LoD block so zooming in never removes already-visible stars
+  if (stride < MAX_LOD_STRIDE) {
+    const parentStars = getSuperBlockStars(Math.floor(blockX / 2), Math.floor(blockY / 2), stride * 2);
+    const minCx = blockX * stride;
+    const maxCx = minCx + stride;
+    const minCy = blockY * stride;
+    const maxCy = minCy + stride;
+    for (let i = 0; i < parentStars.length; i++) {
+      const pStar = parentStars[i];
+      if (pStar.cellX >= minCx && pStar.cellX < maxCx && pStar.cellY >= minCy && pStar.cellY < maxCy) {
+        out.push(pStar);
+        usedCells.add(`${pStar.cellX},${pStar.cellY}`);
       }
-      out.push(brightest);
+    }
+  }
+
+  const centerCx = blockX * stride + (stride >> 1);
+  const centerCy = blockY * stride + (stride >> 1);
+  const lambda = getStellarDensityLambda(centerCx, centerCy);
+
+  if (lambda > 0.002) {
+    const seed = hashCoords(GALAXY_SEED ^ 0x55aa55aan, blockX, blockY, stride);
+    const rng = new DetRng(seed);
+
+    // Expected representative stars per super-block (1 to 3 depending on galactic density)
+    const effectiveLambda = lambda * Math.min(8, Math.sqrt(stride));
+    const sampleCount = Math.min(3, samplePoisson(Math.min(2.6, effectiveLambda * 0.9 + 0.15), rng));
+
+    for (let attempt = 0; attempt < sampleCount * 6 && out.length < sampleCount; attempt++) {
+      const scx = blockX * stride + rng.nextRangeInt(0, stride - 1);
+      const scy = blockY * stride + rng.nextRangeInt(0, stride - 1);
+      const cKey = `${scx},${scy}`;
+      if (usedCells.has(cKey)) continue;
+      usedCells.add(cKey);
+
+      const cellStars = getCellStars(scx, scy);
+      if (cellStars.length > 0) {
+        // Pick the highest-luminosity star in that cell as the landmark representative
+        let brightest = cellStars[0];
+        for (let j = 1; j < cellStars.length; j++) {
+          if (cellStars[j].luminositySolar > brightest.luminositySolar) {
+            brightest = cellStars[j];
+          }
+        }
+        out.push(brightest);
+      }
     }
   }
 
