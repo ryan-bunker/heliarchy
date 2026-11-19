@@ -1,0 +1,828 @@
+{
+  "exportedAt": "2026-11-18T20:37:29.861Z",
+  "pacing": {
+    "simMinutesPerGameYear": 15,
+    "currentSpeedMultiplier": 0,
+    "currentGameYear": 2412.12,
+    "simElapsedMinutes": 181.75,
+    "signalSpeedLyPerMin": 1.7
+  },
+  "colonies": [
+    {
+      "name": "Canpux-381 Prime",
+      "population": 258472,
+      "mines": "13/13",
+      "factories": "25/25",
+      "resPerMin": 18.9,
+      "resPerYear": 283.5,
+      "mineralsKt": {
+        "ironium": 264.3,
+        "boranium": 172.8,
+        "germanium": 160.8
+      },
+      "buildQueue": []
+    },
+    {
+      "name": "Canpux-381 V",
+      "population": 117122,
+      "mines": "14/14",
+      "factories": "20/20",
+      "resPerMin": 9.1,
+      "resPerYear": 136.5,
+      "mineralsKt": {
+        "ironium": 432,
+        "boranium": 127,
+        "germanium": 295
+      },
+      "buildQueue": []
+    },
+    {
+      "name": "Vegma-271 IV",
+      "population": 37622,
+      "mines": "6/6",
+      "factories": "10/10",
+      "resPerMin": 3.1,
+      "resPerYear": 46.5,
+      "mineralsKt": {
+        "ironium": 823.6,
+        "boranium": 422.5,
+        "germanium": 84
+      },
+      "buildQueue": []
+    }
+  ],
+  "fleets": [
+    {
+      "name": "Long Range Scout #1",
+      "ships": {
+        "scout": 1,
+        "colony": 0,
+        "freighter": 0,
+        "destroyer": 0
+      },
+      "fuelPct": 1,
+      "burnLevel": 4,
+      "burnMode": "flyby",
+      "powerPct": 0,
+      "inOrbit": false
+    },
+    {
+      "name": "Stalwart #3",
+      "ships": {
+        "scout": 0,
+        "colony": 0,
+        "freighter": 0,
+        "destroyer": 1
+      },
+      "fuelPct": 100,
+      "burnLevel": 5,
+      "burnMode": "orbit",
+      "powerPct": 100,
+      "inOrbit": true
+    },
+    {
+      "name": "Scout Probe #5",
+      "ships": {
+        "scout": 1,
+        "colony": 0,
+        "freighter": 0,
+        "destroyer": 0
+      },
+      "fuelPct": 9,
+      "burnLevel": 4,
+      "burnMode": "flyby",
+      "powerPct": 0,
+      "inOrbit": false
+    },
+    {
+      "name": "Scout Probe #6",
+      "ships": {
+        "scout": 1,
+        "colony": 0,
+        "freighter": 0,
+        "destroyer": 0
+      },
+      "fuelPct": 0,
+      "burnLevel": 4,
+      "burnMode": "flyby",
+      "powerPct": 0,
+      "inOrbit": false
+    },
+    {
+      "name": "Medium Freighter #9",
+      "ships": {
+        "scout": 0,
+        "colony": 0,
+        "freighter": 1,
+        "destroyer": 0
+      },
+      "fuelPct": 100,
+      "burnLevel": 5,
+      "burnMode": "orbit",
+      "powerPct": 100,
+      "inOrbit": true
+    }
+  ],
+  "events": [
+    {
+      "gameYear": 2411.02,
+      "simElapsedMin": 165.33,
+      "realTimeIso": "2026-11-18T20:36:21.866Z",
+      "type": "info",
+      "message": "Medium Freighter #9 unloaded all colonists and minerals onto Canpux-381 V."
+    },
+    {
+      "gameYear": 2410.9,
+      "simElapsedMin": 163.43,
+      "realTimeIso": "2026-11-18T20:36:14.260Z",
+      "type": "info",
+      "message": "Medium Freighter #9 launched route: Canpux-381 V (Total Plan: 8% fuel)."
+    },
+    {
+      "gameYear": 2410.81,
+      "simElapsedMin": 162.2,
+      "realTimeIso": "2026-11-18T20:36:09.340Z",
+      "type": "info",
+      "message": "Cargo transfer complete for Medium Freighter #9 at Canpux-381 Prime (Pop: 50,000, Min: 0 kT)."
+    },
+    {
+      "gameYear": 2410.04,
+      "simElapsedMin": 150.62,
+      "realTimeIso": "2026-11-18T20:35:23.007Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Factory."
+    },
+    {
+      "gameYear": 2409.76,
+      "simElapsedMin": 146.45,
+      "realTimeIso": "2026-11-18T20:35:06.333Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Factory."
+    },
+    {
+      "gameYear": 2409.48,
+      "simElapsedMin": 142.27,
+      "realTimeIso": "2026-11-18T20:34:49.608Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Factory."
+    },
+    {
+      "gameYear": 2409.21,
+      "simElapsedMin": 138.08,
+      "realTimeIso": "2026-11-18T20:34:32.851Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Factory."
+    },
+    {
+      "gameYear": 2408.91,
+      "simElapsedMin": 133.68,
+      "realTimeIso": "2026-11-18T20:34:15.259Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Factory."
+    },
+    {
+      "gameYear": 2408.46,
+      "simElapsedMin": 126.93,
+      "realTimeIso": "2026-11-18T20:33:48.246Z",
+      "type": "colony",
+      "message": "Vegma-271 IV completed Mine."
+    },
+    {
+      "gameYear": 2408.29,
+      "simElapsedMin": 124.32,
+      "realTimeIso": "2026-11-18T20:33:37.803Z",
+      "type": "colony",
+      "message": "New colony founded on Vegma-271 IV with 25,000 colonists!"
+    },
+    {
+      "gameYear": 2407.92,
+      "simElapsedMin": 118.83,
+      "realTimeIso": "2026-11-18T20:33:15.865Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Medium Freighter."
+    },
+    {
+      "gameYear": 2407.8,
+      "simElapsedMin": 117.06,
+      "realTimeIso": "2026-11-18T20:33:08.761Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2407.65,
+      "simElapsedMin": 114.72,
+      "realTimeIso": "2026-11-18T20:32:59.423Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Mine."
+    },
+    {
+      "gameYear": 2407.57,
+      "simElapsedMin": 113.55,
+      "realTimeIso": "2026-11-18T20:32:54.754Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Mine."
+    },
+    {
+      "gameYear": 2407.51,
+      "simElapsedMin": 112.64,
+      "realTimeIso": "2026-11-18T20:32:51.103Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2407.49,
+      "simElapsedMin": 112.39,
+      "realTimeIso": "2026-11-18T20:32:50.086Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Mine."
+    },
+    {
+      "gameYear": 2407.45,
+      "simElapsedMin": 111.81,
+      "realTimeIso": "2026-11-18T20:32:47.768Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2407.41,
+      "simElapsedMin": 111.22,
+      "realTimeIso": "2026-11-18T20:32:45.418Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Mine."
+    },
+    {
+      "gameYear": 2407.4,
+      "simElapsedMin": 110.97,
+      "realTimeIso": "2026-11-18T20:32:44.435Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2407.34,
+      "simElapsedMin": 110.12,
+      "realTimeIso": "2026-11-18T20:32:41.018Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2407.28,
+      "simElapsedMin": 109.26,
+      "realTimeIso": "2026-11-18T20:32:37.580Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2407.21,
+      "simElapsedMin": 108.11,
+      "realTimeIso": "2026-11-18T20:32:32.978Z",
+      "type": "info",
+      "message": "Scout Probe #6 completed high-speed flyby of Anvor-712 and is coasting into deep space."
+    },
+    {
+      "gameYear": 2407.19,
+      "simElapsedMin": 107.86,
+      "realTimeIso": "2026-11-18T20:32:31.994Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Mine."
+    },
+    {
+      "gameYear": 2407.18,
+      "simElapsedMin": 107.71,
+      "realTimeIso": "2026-11-18T20:32:31.377Z",
+      "type": "info",
+      "message": "Signal lost with Scout Probe #5 (11.6 ly from nearest colony) — onboard power reserves exhausted."
+    },
+    {
+      "gameYear": 2407.16,
+      "simElapsedMin": 107.42,
+      "realTimeIso": "2026-11-18T20:32:30.227Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Mine."
+    },
+    {
+      "gameYear": 2407.13,
+      "simElapsedMin": 106.98,
+      "realTimeIso": "2026-11-18T20:32:28.476Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Mine."
+    },
+    {
+      "gameYear": 2407.11,
+      "simElapsedMin": 106.62,
+      "realTimeIso": "2026-11-18T20:32:27.009Z",
+      "type": "info",
+      "message": "Signal lost with Scout Probe #6 (12.3 ly from nearest colony) — onboard power reserves exhausted."
+    },
+    {
+      "gameYear": 2406.95,
+      "simElapsedMin": 104.23,
+      "realTimeIso": "2026-11-18T20:32:17.454Z",
+      "type": "info",
+      "message": "Telemetry signal received from Denmir-962! System data unlocked."
+    },
+    {
+      "gameYear": 2406.62,
+      "simElapsedMin": 99.23,
+      "realTimeIso": "2026-11-18T20:31:57.445Z",
+      "type": "info",
+      "message": "Scout Probe #5 completed high-speed flyby of Denmir-962 and is coasting into deep space."
+    },
+    {
+      "gameYear": 2406.59,
+      "simElapsedMin": 98.84,
+      "realTimeIso": "2026-11-18T20:31:55.894Z",
+      "type": "info",
+      "message": "Probe scanning Denmir-962 (9.2 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2406.36,
+      "simElapsedMin": 95.43,
+      "realTimeIso": "2026-11-18T20:31:42.255Z",
+      "type": "info",
+      "message": "Signal lost with Long Range Scout #1 (10.4 ly from nearest colony) — onboard power reserves exhausted."
+    },
+    {
+      "gameYear": 2406.33,
+      "simElapsedMin": 94.98,
+      "realTimeIso": "2026-11-18T20:31:40.471Z",
+      "type": "info",
+      "message": "Telemetry signal received from Vaedon-898! System data unlocked."
+    },
+    {
+      "gameYear": 2406.08,
+      "simElapsedMin": 91.25,
+      "realTimeIso": "2026-11-18T20:31:25.558Z",
+      "type": "info",
+      "message": "Telemetry signal received from Zorel-365! System data unlocked."
+    },
+    {
+      "gameYear": 2406.04,
+      "simElapsedMin": 90.65,
+      "realTimeIso": "2026-11-18T20:31:23.146Z",
+      "type": "info",
+      "message": "Telemetry signal received from Orlon-618! System data unlocked."
+    },
+    {
+      "gameYear": 2406.04,
+      "simElapsedMin": 90.55,
+      "realTimeIso": "2026-11-18T20:31:22.729Z",
+      "type": "info",
+      "message": "Scout Probe #6 executed gravity-assist slingshot around Vaedon-898 -> heading to Anvor-712!"
+    },
+    {
+      "gameYear": 2406.01,
+      "simElapsedMin": 90.16,
+      "realTimeIso": "2026-11-18T20:31:21.178Z",
+      "type": "info",
+      "message": "Probe scanning Vaedon-898 (8.2 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.83,
+      "simElapsedMin": 87.52,
+      "realTimeIso": "2026-11-18T20:31:10.607Z",
+      "type": "info",
+      "message": "Scout Probe #5 executed gravity-assist slingshot around Orlon-618 -> heading to Denmir-962!"
+    },
+    {
+      "gameYear": 2405.82,
+      "simElapsedMin": 87.32,
+      "realTimeIso": "2026-11-18T20:31:09.840Z",
+      "type": "info",
+      "message": "Scout Probe #6 executed gravity-assist slingshot around Zorel-365 -> heading to Vaedon-898!"
+    },
+    {
+      "gameYear": 2405.81,
+      "simElapsedMin": 87.13,
+      "realTimeIso": "2026-11-18T20:31:09.068Z",
+      "type": "info",
+      "message": "Probe scanning Orlon-618 (6.0 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.8,
+      "simElapsedMin": 86.94,
+      "realTimeIso": "2026-11-18T20:31:08.289Z",
+      "type": "info",
+      "message": "Probe scanning Zorel-365 (7.3 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.62,
+      "simElapsedMin": 84.27,
+      "realTimeIso": "2026-11-18T20:30:57.618Z",
+      "type": "info",
+      "message": "Telemetry signal received from Arda-840! System data unlocked."
+    },
+    {
+      "gameYear": 2405.54,
+      "simElapsedMin": 83.03,
+      "realTimeIso": "2026-11-18T20:30:52.665Z",
+      "type": "info",
+      "message": "Telemetry signal received from Pervor-267! System data unlocked."
+    },
+    {
+      "gameYear": 2405.39,
+      "simElapsedMin": 80.82,
+      "realTimeIso": "2026-11-18T20:30:43.828Z",
+      "type": "info",
+      "message": "Scout Probe #6 executed gravity-assist slingshot around Arda-840 -> heading to Zorel-365!"
+    },
+    {
+      "gameYear": 2405.38,
+      "simElapsedMin": 80.63,
+      "realTimeIso": "2026-11-18T20:30:43.077Z",
+      "type": "info",
+      "message": "Telemetry signal received from Casvor-967! System data unlocked."
+    },
+    {
+      "gameYear": 2405.36,
+      "simElapsedMin": 80.43,
+      "realTimeIso": "2026-11-18T20:30:42.277Z",
+      "type": "info",
+      "message": "Probe scanning Arda-840 (6.5 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.31,
+      "simElapsedMin": 79.72,
+      "realTimeIso": "2026-11-18T20:30:39.404Z",
+      "type": "info",
+      "message": "Colony Ship #8 launched route: Vegma-271 IV (Total Plan: 81% fuel)."
+    },
+    {
+      "gameYear": 2405.31,
+      "simElapsedMin": 79.58,
+      "realTimeIso": "2026-11-18T20:30:38.858Z",
+      "type": "info",
+      "message": "Telemetry signal received from Kaeget-649! System data unlocked."
+    },
+    {
+      "gameYear": 2405.28,
+      "simElapsedMin": 79.26,
+      "realTimeIso": "2026-11-18T20:30:37.570Z",
+      "type": "info",
+      "message": "Probe scanning Pervor-267 (6.4 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.19,
+      "simElapsedMin": 77.79,
+      "realTimeIso": "2026-11-18T20:30:31.690Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2405.18,
+      "simElapsedMin": 77.75,
+      "realTimeIso": "2026-11-18T20:30:31.524Z",
+      "type": "info",
+      "message": "Scout Probe #6 executed gravity-assist slingshot around Casvor-967 -> heading to Arda-840!"
+    },
+    {
+      "gameYear": 2405.16,
+      "simElapsedMin": 77.36,
+      "realTimeIso": "2026-11-18T20:30:29.971Z",
+      "type": "info",
+      "message": "Probe scanning Casvor-967 (5.6 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.04,
+      "simElapsedMin": 75.61,
+      "realTimeIso": "2026-11-18T20:30:22.985Z",
+      "type": "info",
+      "message": "Scout Probe #5 executed gravity-assist slingshot around Kaeget-649 -> heading to Orlon-618!"
+    },
+    {
+      "gameYear": 2405.02,
+      "simElapsedMin": 75.23,
+      "realTimeIso": "2026-11-18T20:30:21.451Z",
+      "type": "info",
+      "message": "Probe scanning Kaeget-649 (7.4 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2405.01,
+      "simElapsedMin": 75.14,
+      "realTimeIso": "2026-11-18T20:30:21.117Z",
+      "type": "info",
+      "message": "Telemetry signal received from Kaerus-476! System data unlocked."
+    },
+    {
+      "gameYear": 2405,
+      "simElapsedMin": 74.95,
+      "realTimeIso": "2026-11-18T20:30:20.333Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2404.94,
+      "simElapsedMin": 74.08,
+      "realTimeIso": "2026-11-18T20:30:16.869Z",
+      "type": "info",
+      "message": "Cargo transfer complete for Colony Ship #8 at Canpux-381 Prime (Pop: 25,000, Min: 100 kT)."
+    },
+    {
+      "gameYear": 2404.82,
+      "simElapsedMin": 72.31,
+      "realTimeIso": "2026-11-18T20:30:09.762Z",
+      "type": "info",
+      "message": "Scout Probe #6 executed gravity-assist slingshot around Kaerus-476 -> heading to Casvor-967!"
+    },
+    {
+      "gameYear": 2404.8,
+      "simElapsedMin": 71.97,
+      "realTimeIso": "2026-11-18T20:30:08.411Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2404.79,
+      "simElapsedMin": 71.92,
+      "realTimeIso": "2026-11-18T20:30:08.211Z",
+      "type": "info",
+      "message": "Probe scanning Kaerus-476 (5.5 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2404.6,
+      "simElapsedMin": 68.98,
+      "realTimeIso": "2026-11-18T20:29:56.456Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2404.4,
+      "simElapsedMin": 66,
+      "realTimeIso": "2026-11-18T20:29:44.533Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2404.38,
+      "simElapsedMin": 65.71,
+      "realTimeIso": "2026-11-18T20:29:43.383Z",
+      "type": "info",
+      "message": "Telemetry signal received from Orri-57! System data unlocked."
+    },
+    {
+      "gameYear": 2404.3,
+      "simElapsedMin": 64.51,
+      "realTimeIso": "2026-11-18T20:29:38.598Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Colony Ship."
+    },
+    {
+      "gameYear": 2404.26,
+      "simElapsedMin": 63.86,
+      "realTimeIso": "2026-11-18T20:29:35.963Z",
+      "type": "info",
+      "message": "Scout Probe #5 executed gravity-assist slingshot around Orri-57 -> heading to Kaeget-649!"
+    },
+    {
+      "gameYear": 2404.23,
+      "simElapsedMin": 63.47,
+      "realTimeIso": "2026-11-18T20:29:34.430Z",
+      "type": "info",
+      "message": "Probe scanning Orri-57 (3.8 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2403.69,
+      "simElapsedMin": 55.34,
+      "realTimeIso": "2026-11-18T20:29:01.897Z",
+      "type": "info",
+      "message": "Telemetry signal received from Tauma-241! System data unlocked."
+    },
+    {
+      "gameYear": 2403.64,
+      "simElapsedMin": 54.62,
+      "realTimeIso": "2026-11-18T20:28:59.025Z",
+      "type": "info",
+      "message": "Scout Probe #6 launched route: Kaerus-476 -> Casvor-967 -> Arda-840 -> Zorel-365 -> Vaedon-898 -> Anvor-712 (Total Plan: 100% fuel)."
+    },
+    {
+      "gameYear": 2403.63,
+      "simElapsedMin": 54.38,
+      "realTimeIso": "2026-11-18T20:28:58.058Z",
+      "type": "info",
+      "message": "Scout Probe #5 executed gravity-assist slingshot around Tauma-241 -> heading to Orri-57!"
+    },
+    {
+      "gameYear": 2403.6,
+      "simElapsedMin": 53.99,
+      "realTimeIso": "2026-11-18T20:28:56.495Z",
+      "type": "info",
+      "message": "Probe scanning Tauma-241 (2.3 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2403.47,
+      "simElapsedMin": 52.08,
+      "realTimeIso": "2026-11-18T20:28:48.858Z",
+      "type": "info",
+      "message": "Telemetry signal received from Siris-654! System data unlocked."
+    },
+    {
+      "gameYear": 2403.42,
+      "simElapsedMin": 51.35,
+      "realTimeIso": "2026-11-18T20:28:45.958Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2403.3,
+      "simElapsedMin": 49.55,
+      "realTimeIso": "2026-11-18T20:28:38.748Z",
+      "type": "info",
+      "message": "Scout Probe #5 launched route: Tauma-241 -> Orri-57 -> Kaeget-649 -> Orlon-618 -> Denmir-962 (Total Plan: 66% fuel)."
+    },
+    {
+      "gameYear": 2403.21,
+      "simElapsedMin": 48.17,
+      "realTimeIso": "2026-11-18T20:28:33.218Z",
+      "type": "info",
+      "message": "Long Range Scout #1 completed high-speed flyby of Siris-654 and is coasting into deep space."
+    },
+    {
+      "gameYear": 2403.19,
+      "simElapsedMin": 47.87,
+      "realTimeIso": "2026-11-18T20:28:32.034Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2403.19,
+      "simElapsedMin": 47.78,
+      "realTimeIso": "2026-11-18T20:28:31.667Z",
+      "type": "info",
+      "message": "Probe scanning Siris-654 (7.3 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2402.96,
+      "simElapsedMin": 44.4,
+      "realTimeIso": "2026-11-18T20:28:18.145Z",
+      "type": "info",
+      "message": "Telemetry signal received from Pegcor-817! System data unlocked."
+    },
+    {
+      "gameYear": 2402.96,
+      "simElapsedMin": 44.39,
+      "realTimeIso": "2026-11-18T20:28:18.096Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2402.84,
+      "simElapsedMin": 42.67,
+      "realTimeIso": "2026-11-18T20:28:11.205Z",
+      "type": "info",
+      "message": "Scout Probe #5 launched route: Kaerus-476 -> Casvor-967 -> Arda-840 -> Zorel-365 -> Vaedon-898 (Total Plan: 88% fuel)."
+    },
+    {
+      "gameYear": 2402.77,
+      "simElapsedMin": 41.51,
+      "realTimeIso": "2026-11-18T20:28:06.567Z",
+      "type": "info",
+      "message": "Telemetry signal received from Zetget-361! System data unlocked."
+    },
+    {
+      "gameYear": 2402.73,
+      "simElapsedMin": 40.89,
+      "realTimeIso": "2026-11-18T20:28:04.120Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2402.61,
+      "simElapsedMin": 39.15,
+      "realTimeIso": "2026-11-18T20:27:57.134Z",
+      "type": "info",
+      "message": "Long Range Scout #1 executed gravity-assist slingshot around Pegcor-817 -> heading to Siris-654!"
+    },
+    {
+      "gameYear": 2402.58,
+      "simElapsedMin": 38.76,
+      "realTimeIso": "2026-11-18T20:27:55.583Z",
+      "type": "info",
+      "message": "Probe scanning Pegcor-817 (9.6 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2402.49,
+      "simElapsedMin": 37.41,
+      "realTimeIso": "2026-11-18T20:27:50.181Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2402.45,
+      "simElapsedMin": 36.7,
+      "realTimeIso": "2026-11-18T20:27:47.330Z",
+      "type": "info",
+      "message": "Long Range Scout #1 executed gravity-assist slingshot around Zetget-361 -> heading to Pegcor-817!"
+    },
+    {
+      "gameYear": 2402.42,
+      "simElapsedMin": 36.31,
+      "realTimeIso": "2026-11-18T20:27:45.780Z",
+      "type": "info",
+      "message": "Probe scanning Zetget-361 (8.8 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2402.23,
+      "simElapsedMin": 33.5,
+      "realTimeIso": "2026-11-18T20:27:34.540Z",
+      "type": "info",
+      "message": "Telemetry signal received from Belrus-563! System data unlocked."
+    },
+    {
+      "gameYear": 2402.22,
+      "simElapsedMin": 33.23,
+      "realTimeIso": "2026-11-18T20:27:33.457Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2401.97,
+      "simElapsedMin": 29.51,
+      "realTimeIso": "2026-11-18T20:27:18.562Z",
+      "type": "info",
+      "message": "Long Range Scout #1 executed gravity-assist slingshot around Belrus-563 -> heading to Zetget-361!"
+    },
+    {
+      "gameYear": 2401.94,
+      "simElapsedMin": 29.12,
+      "realTimeIso": "2026-11-18T20:27:17.016Z",
+      "type": "info",
+      "message": "Probe scanning Belrus-563 (7.4 ly away) — telemetry signal in transit..."
+    },
+    {
+      "gameYear": 2401.94,
+      "simElapsedMin": 29.06,
+      "realTimeIso": "2026-11-18T20:27:16.765Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2401.83,
+      "simElapsedMin": 27.45,
+      "realTimeIso": "2026-11-18T20:27:10.346Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2401.73,
+      "simElapsedMin": 25.95,
+      "realTimeIso": "2026-11-18T20:27:04.343Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2401.66,
+      "simElapsedMin": 24.87,
+      "realTimeIso": "2026-11-18T20:27:00.008Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2401.63,
+      "simElapsedMin": 24.45,
+      "realTimeIso": "2026-11-18T20:26:58.340Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2401.53,
+      "simElapsedMin": 22.93,
+      "realTimeIso": "2026-11-18T20:26:52.254Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2401.5,
+      "simElapsedMin": 22.55,
+      "realTimeIso": "2026-11-18T20:26:50.737Z",
+      "type": "info",
+      "message": "Telemetry signal received from Veggar-501! System data unlocked."
+    },
+    {
+      "gameYear": 2401.44,
+      "simElapsedMin": 21.64,
+      "realTimeIso": "2026-11-18T20:26:47.118Z",
+      "type": "colony",
+      "message": "Siror-473 Core (Xenon) completed Destroyer."
+    },
+    {
+      "gameYear": 2401.42,
+      "simElapsedMin": 21.34,
+      "realTimeIso": "2026-11-18T20:26:45.918Z",
+      "type": "colony",
+      "message": "Canpux-381 Prime completed Factory."
+    },
+    {
+      "gameYear": 2401.37,
+      "simElapsedMin": 20.62,
+      "realTimeIso": "2026-11-18T20:26:43.033Z",
+      "type": "colony",
+      "message": "Canpux-381 V completed Factory."
+    },
+    {
+      "gameYear": 2401.34,
+      "simElapsedMin": 20.04,
+      "realTimeIso": "2026-11-18T20:26:40.716Z",
+      "type": "info",
+      "message": "Long Range Scout #1 executed gravity-assist slingshot around Veggar-501 -> heading to Belrus-563!"
+    }
+  ]
+}
